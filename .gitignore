@@ -1,0 +1,8 @@
+/*
+
+# add folders that shouldn't be ignored
+!src/
+
+
+!.gitignore
+!README.md
