@@ -16,3 +16,8 @@
 # Windows "Mark of the Web" sidecar files created when downloaded files
 # are copied into WSL (NTFS Zone.Identifier alternate data streams)
 *:Zone.Identifier
+
+# compiled bytecode caches; !src/ above re-includes everything under src/
+# recursively, so these need an explicit re-exclusion
+__pycache__/
+*.pyc

@@ -197,15 +197,17 @@ class _StubResidualHook:
 
 
 def test_depth_qualitative_gate_at_epoch_zero(cora, coraMetrics) -> None:
-    """Gated on epoch 0 (pre-training), not the checkpoint — see D-038.
+    """Gated on epoch 0 (pre-training), not the checkpoint — see D-038 and
+    FINDINGS.md F-001.
 
-    At the settled hyperparameters (D-029), the unmitigated 32-layer
-    checkpoint does NOT show monotonic energy decay: vanishing gradients leave
-    early layers near their weight-decayed-toward-zero state while the last
-    few layers overfit and blow up, producing an INCREASING energy profile
-    instead. That is a verified finding (D-038), not a test bug. The
-    checkpoint-based version of this gate is deferred until train/ exists with
-    real D-017 checkpoint selection.
+    For GCN specifically (this test's scope; SAGE/GAT are not covered here and
+    behave differently per F-001), the trained checkpoint does NOT show
+    monotonic energy decay at these settled hyperparameters (D-029): checkpoint
+    MAD/energy stay non-collapsed across the depth sweep, unlike epoch 0's
+    clean collapse. That is a verified, measured finding, not a test bug — the
+    mechanism behind it is inferred, not demonstrated (F-001). The
+    checkpoint-based version of this gate is left to report-level analysis
+    rather than re-derived inline in this test.
     """
     torch.manual_seed(0)
     baselineModel = GcnModel(
