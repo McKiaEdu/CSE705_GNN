@@ -198,14 +198,15 @@ class _StubResidualHook:
 
 def test_depth_qualitative_gate_at_epoch_zero(cora, coraMetrics) -> None:
     """Gated on epoch 0 (pre-training), not the checkpoint — see D-038 and
-    FINDINGS.md F-001.
+    FINDINGS.md F-002 (epoch-0/checkpoint contrast) and F-001 (the broader
+    architecture-dependent picture).
 
     For GCN specifically (this test's scope; SAGE/GAT are not covered here and
-    behave differently per F-001), the trained checkpoint does NOT show
+    behave differently per F-001/F-002), the trained checkpoint does NOT show
     monotonic energy decay at these settled hyperparameters (D-029): checkpoint
     MAD/energy stay non-collapsed across the depth sweep, unlike epoch 0's
     clean collapse. That is a verified, measured finding, not a test bug — the
-    mechanism behind it is inferred, not demonstrated (F-001). The
+    mechanism behind it is inferred, not demonstrated (F-003). The
     checkpoint-based version of this gate is left to report-level analysis
     rather than re-derived inline in this test.
     """
