@@ -1,4 +1,4 @@
-"""JkReadout — Jumping Knowledge as a Readout (D-006, D-016, D-026).
+"""JkReadout: Jumping Knowledge as a Readout.
 
 An nn.Module (unlike the parameterless hooks in hooks.py): its Linear layer has
 learnable parameters, and GnnModel stores `readout` as a direct attribute, which
@@ -12,10 +12,10 @@ from torch_geometric.nn import JumpingKnowledge
 
 
 class JkReadout(nn.Module):
-    """Max-pools layerEmbeddings[1:] (D-026) and projects to outDim.
+    """Max-pools layerEmbeddings[1:] and projects to outDim.
 
     Max pooling, not concatenation: concatenation would make this Linear
-    layer's input width -- and therefore the JK arm's parameter count -- a
+    layer's input width, and therefore the JK arm's parameter count, a
     function of depth, confounding the mitigation's apparent effect with a
     capacity increase at exactly the depths this study is about.
 

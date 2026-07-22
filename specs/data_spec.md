@@ -142,12 +142,13 @@ Four decisions were settled and are carried here so they are not relitigated:
   loader ships the raw graph, per decision 3).
 - Mask sizes: `train_mask.sum() == 140`, `val_mask.sum() == 500`,
   `test_mask.sum() == 1000`; all three pairwise disjoint.
-- Row normalization: with `normalizeFeatures=True`, every row sum is 1 **or** 0 —
-  the zero case is the open risk. Cora may contain nodes with an all-zero
-  bag-of-words row, which would make row normalization a division by zero; whether
-  PyG clamps the denominator is version-dependent and has NOT been verified. The
-  check reports the count of zero-sum rows and asserts no `NaN` / `Inf` appears in
-  `data.x`. Do not assert "all rows sum to 1" until the zero-row count is known.
+- Row normalization: with `normalizeFeatures=True`, every row sum is 1 **or** 0. The
+  zero case is retained as a defensive branch in the assertion, but is not expected to
+  fire on Cora: verified empirically that Cora contains zero all-zero bag-of-words rows
+  (see Open questions — resolved), so `data.x` contains no `NaN`/`Inf` and the "sums to
+  1" case is the only one actually exercised. The test still reports the zero-sum row
+  count so a future dataset swap would surface the case rather than silently assume it
+  away.
 - Contrast check: loading with `normalizeFeatures=False` yields a binary `x` with
   integer-valued row sums, confirming the transform is what changes the values.
 - Determinism: two `LoadCora` calls produce identical `x`, `edge_index`, and masks.
@@ -164,13 +165,19 @@ correctness subtlety — measuring energy on the raw graph while the model propa
 the augmented one is an easy and invisible error, and naming it is worth a sentence in
 the discussion.
 
-## Open questions
+## Open questions — resolved
 
-- Does Cora contain all-zero feature rows, and does PyG 2.8.0 clamp the row-sum
-  denominator? Resolve empirically in Claude Code before the first sweep; the answer
-  decides whether the "row sums to 1" assertion can be tightened.
-- Where does `SetSeed` live — `train/` or a shared `utils/`? Decide once so seeding is
-  not duplicated across the harness.
-- Does `SAGEConv` add self-loops internally? Believed not (GraphSAGE keeps the root
-  term as a separate weight), but unverified. Does not change any decision here;
-  confirm at implementation so the assumption is not carried silently.
+- **Does Cora contain all-zero feature rows, and does PyG 2.8.0 clamp the row-sum
+  denominator?** Resolved empirically (`src/tests/test_data.py`): Cora has **zero**
+  all-zero rows, both before and after `NormalizeFeatures`, and `data.x` contains no
+  `NaN`/`Inf`. The PyG-clamp behavior is therefore moot on this dataset — the "every
+  row sums to 1" assertion holds unconditionally and does not need the "or 0" carve-out
+  the Test plan below still states.
+- **Where does `SetSeed` live?** Resolved: `train/harness.py`, called at the top of
+  `TrainRun` before any model construction (D-022; see also `experiments_spec.md`'s
+  `RunOne` note on why it must run before `BuildModel`, not just before training).
+- **Does `SAGEConv` add self-loops internally?** Resolved: **no**. Verified directly by
+  reading `SAGEConv.forward`'s source (`inspect.getsource`) — it calls
+  `self.propagate(edge_index, ...)` with no `add_self_loops` anywhere in the method.
+  GraphSAGE's root term is handled separately via `lin_r`, exactly as guessed in D-004's
+  original note. This closes D-004's "believed not, unverified" note.

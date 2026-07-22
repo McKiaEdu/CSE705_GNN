@@ -1,14 +1,15 @@
 """LoadRecords, BuildTable, Aggregate, CheckCoverage, EnergyCurve.
 
-The aggregation layer, strictly separated from plotting (D-033): returns tables,
-never touches matplotlib. Mean/std are computed at read time and never written
-back to results/ (C3).
+The aggregation layer, strictly separated from plotting: returns tables, never
+touches matplotlib. Mean/std are computed at read time and never written back
+to results/.
 """
 
 from __future__ import annotations
 
 import glob
 import json
+import math
 import os
 from typing import Any, Sequence
 
@@ -33,8 +34,8 @@ CAPTURE_BLOCKS = ("epoch0Metrics", "checkpointMetrics", "finalMetrics")
 
 def LoadRecords(resultsDir: str) -> list[dict]:
     """Reads and JSON-parses every *.json in resultsDir (non-recursive), skipping
-    D-039 failure markers (*.failed.json -- not a C3 record), and raises on a
-    file that IS meant to be a record but is missing required keys, rather than
+    failure markers (*.failed.json, not a results record), and raises on a file
+    that IS meant to be a record but is missing required keys, rather than
     skipping it silently."""
     records = []
     for path in sorted(glob.glob(os.path.join(resultsDir, "*.json"))):
@@ -44,15 +45,15 @@ def LoadRecords(resultsDir: str) -> list[dict]:
             record = json.load(f)
         missingKeys = C3_TOP_LEVEL_KEYS - record.keys()
         if missingKeys:
-            raise ValueError(f"{path}: missing required C3 keys {sorted(missingKeys)}")
+            raise ValueError(f"{path}: missing required keys {sorted(missingKeys)}")
         records.append(record)
     return records
 
 
 def BuildTable(records: list[dict]) -> pd.DataFrame:
-    """One tidy row per run: config, results, and per-capture scalars (D-013's
-    frobeniusSquared aside, everything a headline figure needs without going
-    back to the raw per-layer arrays -- those are read via EnergyCurve).
+    """One tidy row per run: config, results, and per-capture scalars (aside
+    from frobeniusSquared, everything a headline figure needs without going
+    back to the raw per-layer arrays, which are read via EnergyCurve instead).
     `mitigations` is stored as a tuple, not a list, so it stays hashable and
     group-by-able.
     """
@@ -75,7 +76,7 @@ def BuildTable(records: list[dict]) -> pd.DataFrame:
 
 def Aggregate(table: pd.DataFrame, groupBy: list[str]) -> pd.DataFrame:
     """Mean, standard deviation, and count per group, over every numeric column
-    not itself a group-by key. count is not decorative -- CheckCoverage is the
+    not itself a group-by key. count is not decorative: CheckCoverage is the
     guard, but a reader of this table alone can already see a short group."""
     grouped = table.groupby(groupBy)
     numericColumns = [c for c in table.select_dtypes(include="number").columns if c not in groupBy]
@@ -85,12 +86,26 @@ def Aggregate(table: pd.DataFrame, groupBy: list[str]) -> pd.DataFrame:
     return pd.concat([means, stds, counts], axis=1).reset_index()
 
 
+def GeometricMean(values: Sequence[float], floor: float = 1e-12) -> float:
+    """Geometric mean of `values`, flooring at `floor` before taking the log.
+
+    Per-dimension Dirichlet energy across seeds is right-skewed rather than
+    symmetric: a small number of seeds can run several times higher than the
+    rest, so an arithmetic mean is pulled toward the largest seed instead of
+    describing a typical one. Used by PlotEnergyShift for this reason. Floors
+    before `log` for the same numerical-safety reason FitContractionSlope
+    does: a per-dimension energy can be exact zero in float32 for a
+    sufficiently collapsed run.
+    """
+    floored = [max(v, floor) for v in values]
+    return math.exp(sum(math.log(v) for v in floored) / len(floored))
+
+
 def CheckCoverage(table: pd.DataFrame, expected: Sequence[dict]) -> list[str]:
     """Configurations present in `expected` (identity: convType, mitigations,
     numLayers, seed) but absent from `table`. `expected` is a plain sequence of
-    dicts, not a RunConfig -- viz must not import experiments/ (dependency
-    direction), so the caller (which does have BuildGrid) supplies identities
-    generically.
+    dicts, not a RunConfig: viz must not import experiments/, so the caller
+    (which does have BuildGrid) supplies identities generically.
     """
     identityColumns = ["convType", "mitigations", "numLayers", "seed"]
 
@@ -112,10 +127,10 @@ def CheckCoverage(table: pd.DataFrame, expected: Sequence[dict]) -> list[str]:
 
 def EnergyCurve(record: dict, capture: str) -> tuple[list[int], list[float]]:
     """(bandIndices, normalizedEnergy) for one record: per-dimension Dirichlet
-    energy restricted to the band, normalized at the first band index (D-002 as
-    amended). Values that come out nan/inf (e.g. a zero reference energy) are
-    returned untouched -- a collapsed run shows a gap on the plot, not a
-    fabricated point.
+    energy restricted to the band, normalized at the first band index. Values
+    that come out nan/inf (e.g. a zero reference energy) are returned
+    untouched: a collapsed run shows a gap on the plot, not a fabricated
+    point.
     """
     bandIndices = record["bandIndices"]
     energies = record[capture]["dirichletEnergy"]

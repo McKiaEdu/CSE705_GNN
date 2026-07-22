@@ -1,4 +1,4 @@
-"""Test plan for models_spec.md."""
+"""Test plan for models: architectures and the layer-stack contract."""
 
 from __future__ import annotations
 
@@ -17,9 +17,9 @@ HIDDEN_DIM = 64
 OUT_DIM = 7
 IN_DIM = 1433
 
-# Arbitrary valid GCN2Conv hyperparameters, used only to exercise GcniiModel's code
-# paths in these tests. The real value is an experiments-level decision (D-034),
-# not settled here.
+# Arbitrary valid GCN2Conv hyperparameters, used only to exercise GcniiModel's
+# code paths in these tests. The value used in the actual sweep is decided
+# elsewhere, not settled here.
 GCNII_TEST_ALPHA = 0.1
 GCNII_TEST_THETA = 0.5
 
@@ -27,10 +27,10 @@ GCNII_TEST_THETA = 0.5
 class _StubJkLikeReadout:
     """Minimal Readout test double with FinalLayerIsLogits = False.
 
-    Stands in for mitigations' real JkReadout, which is not built yet (mitigations
-    comes after train/ in the build order per models_spec.md Dependencies). This
-    tests that GnnModel behaves correctly for any conforming Readout, not the
-    specific JK aggregation logic, which belongs to mitigations' own test plan.
+    Stands in for mitigations' JkReadout, so this module's tests do not need
+    to import mitigations/. Tests that GnnModel behaves correctly for any
+    conforming Readout, not the specific JK aggregation logic, which belongs
+    to mitigations' own test plan.
     """
 
     FinalLayerIsLogits = False
@@ -244,7 +244,7 @@ def test_gcnii_width_homogeneity_last_layer_readout(cora) -> None:
 
 
 def test_gcnii_numlayers_is_hop_count(cora) -> None:
-    # D-034: numLayers GCN2Conv hops, input/output projections uncounted
+    # numLayers GCN2Conv hops; input/output projections are uncounted
     torch.manual_seed(0)
     depth = 5
     model = _BuildModel("gcnii", depth, readout=LastLayerReadout())

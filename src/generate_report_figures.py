@@ -1,6 +1,6 @@
 """Generates figures/*.pdf and tables/*.md /*.tex from the real results/ sweep.
 
-Not a tested module component -- a one-shot driver, matching run_sweep.py's
+Not a tested module component: a one-shot driver, matching run_sweep.py's
 role for the sweep itself. Regenerable from results/ at any time; the README
 documents this command as the way to rebuild both directories.
 """
@@ -61,7 +61,7 @@ def main() -> None:
     expectedArmD = [c.__dict__ for c in BuildGrid("D", armDMitigation=["jk"])]
     for armName, expected in [("A", expectedArmA), ("B", expectedArmB), ("C", expectedArmC), ("D", expectedArmD)]:
         missing = CheckCoverage(mainTable, expected)
-        print(f"arm {armName}: {len(missing)} missing" + (f" -- {missing}" if missing else ""))
+        print(f"arm {armName}: {len(missing)} missing" + (f": {missing}" if missing else ""))
 
     print("\n=== figures ===")
     PlotAccuracyVsDepth(mainTable, os.path.join(FIGURES_DIR, "accuracy_vs_depth.pdf"))

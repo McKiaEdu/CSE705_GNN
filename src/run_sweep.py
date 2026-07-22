@@ -1,14 +1,13 @@
 """Top-level orchestration driver for the full 534-run sweep.
 
-Not a tested module component -- the "notebook or top-level script" experiments_spec.md's
-Approach section anticipates calling RunSweep per arm (D-040). Ordering per
-experiments_spec.md: F first (sets the shared hyperparameter defaults, D-029),
-then A, C, E (independent of B), then B, then D once B is aggregated (D-041).
+Not a tested module component: a plain script calling RunSweep per arm.
+Ordering: F first (sets the shared hyperparameter defaults), then A, C, E
+(independent of B), then B, then D once B is aggregated.
 
-The arm-F and arm-B aggregation logic here is intentionally minimal -- just
-enough to make the two sweep-ordering decisions (D-029's three-level rule,
-D-041's depth-32 mean test accuracy rule). It is not viz/'s aggregation layer,
-which does not exist yet and will supersede this for report figures.
+The arm-F and arm-B aggregation logic here is intentionally minimal: just
+enough to make the two sweep-ordering decisions (arm F's three-level
+selection rule, arm D's depth-32 mean test accuracy rule). It is not viz/'s
+aggregation layer, which supersedes this for report figures.
 """
 
 from __future__ import annotations
@@ -46,9 +45,9 @@ def _LoadRecords(directory: str) -> list[dict]:
 
 
 def _SelectArmFWinner() -> tuple[float, float, float]:
-    """D-029's three-level rule: highest mean val accuracy; tie-break (within
-    one std of the top) lower mean val loss; final fallback closest to the
-    published baseline."""
+    """Three-level selection rule: highest mean val accuracy; tie-break
+    (within one std of the top) lower mean val loss; final fallback closest
+    to the published baseline."""
     records = _LoadRecords(HPSEARCH_DIR)
     byCombo: dict[tuple[float, float, float], list[dict]] = {}
     for record in records:
@@ -91,7 +90,7 @@ def _SelectArmFWinner() -> tuple[float, float, float]:
 
 
 def _SelectArmDMitigation() -> list[str]:
-    """D-041: highest mean test accuracy at depth=32 among arm B's four arms."""
+    """Highest mean test accuracy at depth=32 among arm B's four mitigation arms."""
     records = [r for r in _LoadRecords(RESULTS_DIR) if r["config"]["numLayers"] == 32 and r["config"]["mitigations"]]
     byMitigation: dict[tuple[str, ...], list[float]] = {}
     for record in records:

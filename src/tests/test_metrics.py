@@ -1,4 +1,4 @@
-"""Test plan for metrics_spec.md."""
+"""Test plan for metrics: Dirichlet energy, MAD, and the contraction slope."""
 
 from __future__ import annotations
 
@@ -33,7 +33,7 @@ def _RandomUndirectedGraph(numNodes: int, numEdges: int, seed: int) -> Tensor:
 def _CycleGraph(numNodes: int) -> Tensor:
     """A regular graph (every node has degree 2): d~_i is uniform after
     augmentation, so Delta~'s null space reduces to the constant vector here,
-    unlike on Cora's irregular degree sequence (D-036)."""
+    unlike on Cora's irregular degree sequence."""
     src = torch.arange(numNodes)
     dst = (src + 1) % numNodes
     edgeIndex = torch.stack([torch.cat([src, dst]), torch.cat([dst, src])], dim=0)
@@ -52,8 +52,8 @@ def coraMetrics(cora):
 
 def test_collapse_floor_on_regular_graph() -> None:
     # Delta~ = I - D~^-1/2 A~ D~^-1/2's null space is sqrt(d~)-proportional in
-    # general (D-036); it reduces to the literal "identical rows" case from
-    # metrics_spec.md's test plan only on a REGULAR graph, where d~_i is uniform
+    # general; it reduces to the literal "identical rows" case tested here
+    # only on a REGULAR graph, where d~_i is uniform
     numNodes = 10
     edgeIndex = _CycleGraph(numNodes)
     metric = OversmoothingMetrics(edgeIndex, numNodes)
@@ -64,7 +64,7 @@ def test_collapse_floor_on_regular_graph() -> None:
 
 def test_collapse_floor_on_cora_is_sqrt_degree_weighted(cora, coraMetrics) -> None:
     # on Cora's irregular graph (degree 2..169), the true zero-energy state is
-    # rows proportional to sqrt(d~_i), not identical rows (D-036). MAD is still
+    # rows proportional to sqrt(d~_i), not identical rows. MAD is still
     # exactly 0 here too, since cosine distance ignores positive per-node scaling
     _, invSqrtDegree = BuildAugmentedOperator(cora.edge_index, cora.num_nodes)
     sqrtDegree = 1.0 / invSqrtDegree
@@ -123,8 +123,8 @@ def test_self_loop_guard(cora) -> None:
 
 class _StubJkLikeReadout:
     """See test_models.py's identical stub: a minimal Readout test double with
-    FinalLayerIsLogits = False, standing in for mitigations' not-yet-built
-    JkReadout."""
+    FinalLayerIsLogits = False, standing in for mitigations' JkReadout without
+    importing mitigations/."""
 
     FinalLayerIsLogits = False
 
@@ -185,10 +185,9 @@ def test_slope_refuses_to_guess_at_single_point_band() -> None:
 
 
 class _StubResidualHook:
-    """Minimal LayerHook test double implementing D-024's rule: h + hPrev when
-    shapes match, h unchanged otherwise. Stands in for mitigations' real
-    ResidualHook, which is not built yet (mitigations comes after train/ in the
-    build order)."""
+    """Minimal LayerHook test double: h + hPrev when shapes match, h unchanged
+    otherwise. Stands in for mitigations' real ResidualHook without importing
+    mitigations/."""
 
     def Apply(self, h: Tensor, hPrev: Tensor, edgeIndex: Tensor) -> Tensor:
         if h.shape == hPrev.shape:
@@ -197,18 +196,16 @@ class _StubResidualHook:
 
 
 def test_depth_qualitative_gate_at_epoch_zero(cora, coraMetrics) -> None:
-    """Gated on epoch 0 (pre-training), not the checkpoint — see D-038 and
-    FINDINGS.md F-002 (epoch-0/checkpoint contrast) and F-001 (the broader
-    architecture-dependent picture).
+    """Gated on epoch 0 (pre-training), not the checkpoint.
 
-    For GCN specifically (this test's scope; SAGE/GAT are not covered here and
-    behave differently per F-001/F-002), the trained checkpoint does NOT show
-    monotonic energy decay at these settled hyperparameters (D-029): checkpoint
-    MAD/energy stay non-collapsed across the depth sweep, unlike epoch 0's
-    clean collapse. That is a verified, measured finding, not a test bug — the
-    mechanism behind it is inferred, not demonstrated (F-003). The
-    checkpoint-based version of this gate is left to report-level analysis
-    rather than re-derived inline in this test.
+    For GCN specifically (this test's scope; SAGE and GAT behave differently
+    and are not covered here), the trained checkpoint does not show monotonic
+    energy decay at these hyperparameters: checkpoint MAD and energy stay
+    non-collapsed across the depth sweep, unlike epoch 0's clean collapse.
+    That is a verified, measured finding, not a test bug; the mechanism
+    behind it is inferred, not demonstrated. The checkpoint-based version of
+    this gate is left to report-level analysis rather than re-derived inline
+    in this test.
     """
     torch.manual_seed(0)
     baselineModel = GcnModel(

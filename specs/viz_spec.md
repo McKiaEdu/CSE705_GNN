@@ -142,7 +142,7 @@ Vectorization is not a concern here; the work is table operations and rendering.
 
 Every item here is provisional until confirmed.
 
-- Python / version: Python 3.12.13.
+- Python / version: Python 3.14.4 (matches `data_spec.md`'s corrected pin).
 - Libraries / role: `matplotlib` (rendering), `pandas` (tables), `scikit-learn`
   (t-SNE only), `torch` (loading `.pt` embeddings).
 - Rendering: the `Agg` backend, so figures render headless and reproducibly. No
@@ -209,17 +209,20 @@ evidence rather than a mechanism. Three points:
 
 ## Open questions
 
-- **How many t-SNE panels.** Currently four saved embeddings (GCN baseline and mitigated,
-  depths 2 and 32, seed 0). Whether the figure shows two panels or four affects
-  legibility at single-column width. Decide when the first draft is rendered.
-- **Whether `contractionSlope` deserves a figure or only a table.** It is one number per
-  configuration, so a table may serve better than a plot — but a slope-versus-depth curve
-  would show whether the decay rate itself changes with depth, which is a sharper claim
-  than a single rate. Undecided.
-- **Greyscale legibility with five mitigation series.** Colourblind-safe is achievable;
-  five distinguishable greyscale line styles at 3.5 inches is harder. May force splitting
-  the ablation into two panels.
-- **Fit quality for the slope.** Flagged in `metrics_spec` as possibly warranting an
-  `r^2` alongside the slope. If it is added there, this module should surface it, since a
-  poorly fitted slope presented as a single number is exactly the kind of thing a grader
-  probes.
+- **How many t-SNE panels.** Resolved: rendered with **two** panels, not four — GCN
+  baseline (unmitigated) at depth 2 versus depth 32, seed 0
+  (`results/embeddings/gcn_none_d2_s0_l1.pt` and `gcn_none_d32_s0_l31.pt`). The
+  mitigated-variant embeddings saved per D-031 are not used in this figure.
+- **Whether `contractionSlope` deserves a figure or only a table.** Resolved: table only
+  — `tables/contraction_slope.md` / `.tex`, aggregated by `(convType, numLayers)` over
+  the unmitigated arm, mean/std/count. No slope-versus-depth plot was built.
+- **Greyscale legibility with five mitigation series.** Still open, and known to be
+  unresolved rather than merely undecided: `PlotMitigationAblation`'s own source comment
+  states plainly that panel-count/legibility "is not resolved here," and it currently
+  renders all five mitigation series on one axes. Worth revisiting before the figure is
+  finalized for the article.
+- **Fit quality for the slope.** Still open; no `r^2` or floored-point-count has been
+  added in `metrics_spec.md` either. Sharper now than when first raised — see that
+  spec's updated note on D-037's floor binding on a majority of band points in some
+  captures, which is exactly the "poorly fitted slope presented as a single number" case
+  this question anticipated.

@@ -1,4 +1,4 @@
-"""Test plan for data_spec.md — Cora loading and invariants."""
+"""Test plan for Cora loading and invariants."""
 
 from __future__ import annotations
 
@@ -36,9 +36,9 @@ def test_mask_sizes_and_disjointness() -> None:
 
 
 def test_row_normalization_sums_to_one_or_zero() -> None:
-    # zero-sum rows are the open risk flagged in data_spec.md: whether PyG clamps
-    # the row-sum denominator on an all-zero bag-of-words row is version-dependent
-    # and unverified before this test runs
+    # zero-sum rows would divide by zero during row normalization; Cora has
+    # none, but this test reports the count so a future dataset swap would
+    # surface the case rather than assume it away
     data = LoadCora(normalizeFeatures=True)
     rowSums = data.x.sum(dim=1)
     isOne = torch.isclose(rowSums, torch.ones_like(rowSums), atol=1e-5)

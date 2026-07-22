@@ -160,6 +160,15 @@ written and should be narrowed. See Open questions.
   `log E_l` against `l` over `bandIndices` only; returns the slope. Returns `nan` when
   the band has fewer than two points, which is the `L = 2` case flagged in C1 — the
   baselines do not yield a slope and this must not silently return 0.
+  **Revised (D-037):** energies are floored at `1e-12` before the `log`. A genuinely
+  collapsed deep configuration produces exact-zero per-dimension energy in float32,
+  and `log(0)` raises rather than returning `-inf`. The floor is a numerical necessity,
+  not cosmetic — D-037's addendum (quantified 2026-07-21) found it actively binds on a
+  majority of band points in some captures (e.g. 22 of 31 band layers for the
+  depth-32 unmitigated GCN's checkpoint capture), which biases the fitted slope toward
+  zero in exactly the collapsed regime the slope is meant to characterize. A reader of
+  a near-zero `contractionSlope` on a deeply collapsed run should treat it as a floor
+  artifact, not evidence of a shallow decay rate — see `FINDINGS.md` F-003.
 - `ComputeAll(layerEmbeddings)` — defined here; loops over the `L + 1` tensors (a loop
   over layers, not nodes), calls the three per-layer functions, derives the band, fits
   the slope, returns `LayerMetrics`.
@@ -184,7 +193,7 @@ was computed and the reference layer can be changed without a rerun.
 
 Every item here is provisional until confirmed.
 
-- Python / version: Python 3.12.13 (carried from the data spec).
+- Python / version: Python 3.14.4 (matches `data_spec.md`'s corrected pin).
 - Libraries / role: `torch`, `torch_geometric` 2.8.0 (core). No `scipy`, no
   `scikit-learn` — every reduction is a torch tensor op.
 - Compute / runtime: negligible. Energy is a sum over ~10.5k + 2708 edges. MAD is one
@@ -273,28 +282,20 @@ rather than reportage:
 
 ## Open questions
 
-- **MAD's reduction convention.** Deli Chen et al. average over *non-zero* entries of
-  the distance matrix rather than all entries, at both the row-mean and the final-mean
-  stage. This must be read off the paper (arXiv:1909.03211, the MAD subsection) and
-  matched exactly before the reduction is written. It is not cosmetic: at depth, ReLU
-  produces zero rows whose cosine distance is undefined or zero throughout, and the two
-  conventions diverge precisely in the regime the study is about.
-- **`hiddenDim` value.** Still unfixed at 16 vs 64, carried from `models_spec`. It does
-  not block this component's design — per-dimension division already removes the
-  dimension-count effect and the Frobenius decision removes the scale dependence from
-  the question — but it must be fixed before the sweep, and the band width assertion in
-  the test plan is written against whatever value is chosen.
-- **C1's "final entry equals the logits" clause.** False under Jumping Knowledge. This
-  component is robust to it, but the clause is a contract statement other components may
-  rely on and should be narrowed to "under `LastLayerReadout`." Needs a D-001 changelog
-  line.
-- **GCNII's input projection and index 0.** If GCNII adds a linear projection before the
-  conv stack, is `layerEmbeddings[0]` the raw 1433-dim `X` or the projected
-  `hiddenDim` tensor? If the latter, GCNII's index 0 is a different representation kind
-  from every other architecture's, and the `E_0` anchor is not comparable across
-  architectures. Belongs to `models` but lands here; resolve with the GCNII `x0`
-  question already open in `models_spec`.
-- **`contractionSlope` fit quality.** The fit currently returns only the slope. If the
-  log-energy curve is visibly non-linear for some configuration, a single slope
-  misrepresents it. Consider also recording `r^2` so a bad fit is detectable at
-  aggregation time rather than invisible. Cheap to add; not yet decided.
+- **MAD's reduction convention.** Resolved (D-035): read directly off arXiv:1909.03211
+  Eq. 1-4 rather than inferred — average over non-zero entries at both the row-mean and
+  final-mean stage, restricted to the global (`M^tgt` all-ones) variant, since MADGap is
+  out of scope.
+- **`hiddenDim` value.** Resolved: 64 (D-023) except arm E's fidelity runs at 16.
+- **C1's "final entry equals the logits" clause.** Resolved: narrowed to "under
+  `LastLayerReadout`," with the D-001 changelog line recorded.
+- **GCNII's input projection and index 0.** Resolved (D-034): GCNII's input projection
+  is uncounted and its output is never written into `layerEmbeddings` — index 0 is raw
+  `X` for GCNII exactly as for every other architecture, so the `E_0` anchor is
+  comparable across all four architectures. See `models_spec.md`'s `GcniiModel` note.
+- **`contractionSlope` fit quality.** Still undecided. No `r^2` or fit-quality field has
+  been added; the fit returns only the slope. This is now a sharper question than when
+  first raised, given D-037's floor-binding finding above — a slope fitted mostly over
+  floored points is a case where `r^2` (or a floored-point-count alongside the slope)
+  would make a misleading single number detectable at aggregation time rather than
+  invisible. Still cheap to add; still not decided.

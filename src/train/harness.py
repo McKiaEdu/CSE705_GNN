@@ -1,7 +1,6 @@
-"""TrainRun — the training loop, early stopping, checkpoint selection, metric
-captures, and C3 record assembly. The only component that owns an optimizer or
-decides which weights the reported numbers come from. Realizes D-017 through
-D-022.
+"""TrainRun: the training loop, early stopping, checkpoint selection, metric
+captures, and results-record assembly. The only component that owns an
+optimizer or decides which weights the reported numbers come from.
 """
 
 from __future__ import annotations
@@ -34,15 +33,14 @@ class TrainConfig:
 
 
 def SetSeed(seed: int) -> None:
-    """Seeds torch, random, and numpy. Deterministic-algorithm flags are not
-    set (train_spec.md Open questions: not yet decided)."""
+    """Seeds torch, random, and numpy. Deterministic-algorithm flags are not set."""
     torch.manual_seed(seed)
     random.seed(seed)
     np.random.seed(seed)
 
 
 def MacroF1(predictions: Tensor, targets: Tensor, numClasses: int) -> float:
-    """Vectorized macro-F1 via a bincount confusion matrix (D-021).
+    """Vectorized macro-F1 via a bincount confusion matrix.
 
     Matches sklearn's f1_score(average='macro', zero_division=0): a class with
     no predicted or no actual instances contributes 0 to the mean rather than
@@ -79,8 +77,8 @@ def EvaluateSplit(model: GnnModel, data: Data, mask: Tensor) -> tuple[float, flo
 
 def CaptureMetrics(model: GnnModel, data: Data, metricsInstrument: OversmoothingMetrics) -> dict[str, Any]:
     """One explicit eval-mode forward; detaches layerEmbeddings to CPU at the
-    capture site (D-011), never inside models. Returns the capture block plus
-    bandIndices, for the caller to hoist to the top level once (C3)."""
+    capture site, never inside models. Returns the capture block plus
+    bandIndices, for the caller to hoist to the top level once."""
     model.eval()
     with torch.no_grad():
         _, layerEmbeddings = model.Forward(data.x, data.edge_index)
@@ -141,8 +139,8 @@ def TrainRun(model: GnnModel, data: Data, config: TrainConfig, metricsInstrument
                 break
 
     # final-epoch capture on the weights the loop ended with, BEFORE any
-    # restore (D-020) -- reversing this would silently make finalMetrics a
-    # duplicate of checkpointMetrics on every run
+    # restore: reversing this would silently make finalMetrics a duplicate of
+    # checkpointMetrics on every run
     finalCapture = CaptureMetrics(model, data, metricsInstrument)
     finalCapture.pop("bandIndices")
 
@@ -153,7 +151,7 @@ def TrainRun(model: GnnModel, data: Data, config: TrainConfig, metricsInstrument
 
     testLoss, testAccuracy, testMacroF1 = EvaluateSplit(model, data, data.test_mask)
     _, valAccuracyAtCheckpoint, _ = EvaluateSplit(model, data, data.val_mask)
-    del testLoss  # computed per EvaluateSplit's contract; not a C3 field (train_spec.md Open questions)
+    del testLoss  # part of EvaluateSplit's return signature; not written into the record
 
     return {
         "runId": _BuildRunId(model, config),

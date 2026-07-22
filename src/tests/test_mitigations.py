@@ -1,4 +1,4 @@
-"""Test plan for mitigations_spec.md."""
+"""Test plan for mitigations: residual, PairNorm, and Jumping Knowledge."""
 
 from __future__ import annotations
 
@@ -165,8 +165,8 @@ def test_gradient_reaches_every_layer_under_real_jk_readout(cora) -> None:
 
 def test_jk_readout_parameters_reach_model_parameters(cora) -> None:
     # confirms self.readout = readout auto-registers as a submodule (unlike
-    # layerHooks, stored as a plain list -- would not auto-register a
-    # parameterized hook, see hooks.py's module docstring)
+    # layerHooks, stored as a plain list, which would not auto-register a
+    # parameterized hook)
     readout = JkReadout(hiddenDim=HIDDEN_DIM, outDim=OUT_DIM)
     model = GcnModel(
         numLayers=4,

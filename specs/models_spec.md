@@ -76,11 +76,12 @@ post-activation ones. The property is polymorphic data on the null object rather
 Functions/methods use PascalCase; variables use camelCase; PyG `Data` fields keep their
 library names (`edge_index`, `train_mask`).
 
-- `class GnnModel(convType: str, numLayers: int, inDim: int, hiddenDim: int, outDim: int, dropout: float, layerHooks: Sequence[LayerHook], readout: Readout)` — defined here; abstract base owning the layer loop
+- `class GnnModel(numLayers: int, inDim: int, hiddenDim: int, outDim: int, dropout: float, layerHooks: Sequence[LayerHook], readout: Readout)` — defined here; abstract base owning the layer loop. **Revised from the original signature**: there is no `convType: str` constructor parameter. Each architecture subclass instead sets a `CONV_TYPE: str` class attribute (`GcnModel.CONV_TYPE = "gcn"`, etc.) and supplies `BuildLayerConv`; the base `__init__` dispatches to it in a loop. `GcniiModel` is the one exception — see the Implementation plan note below.
 - `Forward(x: Tensor, edgeIndex: Tensor) -> tuple[Tensor, list[Tensor]]` — defined here; returns `(logits [N, C], layerEmbeddings)` per the contract
+- `ConfigRecord() -> dict[str, object]` — defined here (added retroactively during the `train/` build; not in the original interface list). Returns `{convType, numLayers, hiddenDim, dropout, mitigations, readout}`, reading `CONV_TYPE` and each hook's/readout's `NAME` attribute (falling back to the class name) rather than importing `mitigations` — this is what lets `train/` embed a reconstructible model configuration in the results record (D-022) without `models` depending on `mitigations`. Appends `"jk"` to `mitigations` when `readout.NAME == "jk"`, matching the accepted `config.mitigations`/`config.readout` redundancy (D-028).
 - `class LayerHook(Protocol)` — declared here; `Apply(h: Tensor, hPrev: Tensor, edgeIndex: Tensor) -> Tensor`, shape-preserving, called once per layer immediately after the conv
-- `class Readout(Protocol)` — declared here; `Apply(layerEmbeddings: list[Tensor]) -> Tensor`, called once after the loop; carries the boolean property `FinalLayerIsLogits`
-- `class LastLayerReadout` — defined here; null-object default, `FinalLayerIsLogits = True`, returns `layerEmbeddings[-1]`
+- `class Readout(Protocol)` — declared here; `Apply(layerEmbeddings: list[Tensor]) -> Tensor`, called once after the loop; carries the boolean property `FinalLayerIsLogits` and a `NAME: str` property (added alongside `ConfigRecord`, for the same duck-typed naming scheme)
+- `class LastLayerReadout` — defined here; null-object default, `FinalLayerIsLogits = True`, `NAME = "lastLayer"`, returns `layerEmbeddings[-1]`
 - consumes: PyG `Data` (`x [N, 1433]`, `edge_index [2, E]`, `y [N]`, `train_mask` / `val_mask` / `test_mask`)
 - produces: `logits [N, 7]` consumed by `train/`; `layerEmbeddings` consumed by `metrics/` and `viz/`
 
@@ -116,10 +117,22 @@ Contract properties fixed by `DECISIONS.md` and not to be drifted:
   defined here; factory dispatching on `convType` in `{"gcn", "sage", "gat", "gcnii"}`,
   wrapping the PyG conv in a thin adapter so every conv exposes the uniform
   `(x, edgeIndex, x0)` call signature.
-- `class GcnModel(GnnModel)`, `class SageModel(GnnModel)`, `class GatModel(GnnModel)`,
-  `class GcniiModel(GnnModel)` — defined here; each supplies only its conv construction
-  and any architecture-specific width bookkeeping (notably GAT's head handling). None
-  of them redefines `Forward`.
+- `class GcnModel(GnnModel)`, `class SageModel(GnnModel)`, `class GatModel(GnnModel)` —
+  defined here; each supplies only its conv construction and any architecture-specific
+  width bookkeeping (notably GAT's head handling). Neither redefines `Forward`.
+- `class GcniiModel(GnnModel)` — defined here, but resolves the "GCNII and `x0` width"
+  open question (below) by bypassing the base class's `__init__`/`BuildLayerConv`
+  pattern entirely, per D-034. It calls `nn.Module.__init__` directly rather than
+  `GnnModel.__init__`, because the generic per-layer loop assumes a conv can map any
+  `(layerInDim, layerOutDim)` pair, which `GCN2Conv` cannot (it requires equal input and
+  output width, since it needs to add the fixed initial residual `x0`). Its own
+  `__init__` and `Forward` instead wrap exactly `numLayers` `GCN2Conv` hops (so depth
+  stays a hop count comparable across architectures) with an **uncounted**
+  `Linear(inDim, hiddenDim)` input projection and, when `readout.FinalLayerIsLogits` is
+  `True`, an uncounted `Linear(hiddenDim, outDim)` output projection. Neither projection
+  counts toward `numLayers`. The input projection's output seeds every layer's fixed
+  initial-residual term `x0` but is never written into `layerEmbeddings` — index 0
+  remains the raw `X`, exactly as for every other architecture, per D-001 C1.
 - `class LastLayerReadout` — defined here; reused as the default by `experiments/`.
 
 The final conv's output width is `outDim` when `readout.FinalLayerIsLogits` is `True`
@@ -170,7 +183,7 @@ delegated to PyG's sparse message-passing kernels.
 
 Every item here is provisional until confirmed.
 
-- Python / version: Python 3.12.13 (carried from the data spec).
+- Python / version: Python 3.14.4 (matches `data_spec.md`'s corrected pin).
 - Libraries / role: `torch`, `torch_geometric` 2.8.0 (core — `GCNConv`, `SAGEConv`,
   `GATConv`, `GCN2Conv`); `typing.Protocol` for the two hook interfaces.
 - Compute / runtime: CPU wheels, device-agnostic code. Full-batch — the whole graph is
@@ -267,28 +280,33 @@ A third, smaller point worth a sentence: Jumping Knowledge changes what the fina
 readout rather than a special case in the loop is the concrete payoff of the
 composition design, and it is checkable by a grader reading `Forward`.
 
-## Open questions
+## Open questions — resolved
 
-- **D-001 C1 must be narrowed.** The clause "the final entry equals the returned logits"
-  is false under Jumping Knowledge. It should read "under `LastLayerReadout`." Needs a
-  contract edit plus a D-001 changelog line before `train` is implemented.
-- **`hiddenDim` value.** Kipf & Welling use 16; earlier discussion in this project has
-  used both 16 and 64. This must be fixed before the sweep, since the energy curve's
-  comparable band is defined by it. Belongs to `experiments` but blocks `models` tests.
-- **GAT head handling.** Unresolved: is `hiddenDim` per-head or total across heads, and
-  does the final layer concatenate or average its heads? This has a fairness
-  consequence — if `hiddenDim` is per-head, GAT carries `numHeads` times the width of
-  GCN at the same nominal setting, and any depth comparison is confounded by capacity.
-- **GCNII and `x0` width.** `x0` must match the hidden width for the initial-residual
-  term to be added, but the raw `X` is 1433-dimensional. PyG's `GCN2Conv` assumes a
-  prior linear projection to `hiddenDim`. If a projection layer is added, does it count
-  toward `numLayers`? If it does, GCNII at depth `L` performs `L - 1` hops and is not
-  depth-comparable to the others; if it does not, GCNII has one more parameterized layer
-  than its peers. Neither option is free — decide and record which cost we accept.
-  Secondary consequence flagged by `metrics`: if the projection exists,
-  `layerEmbeddings[0]` for GCNII may be the projected tensor rather than raw `X`, making
-  its `E_0` anchor a different representation kind from the other architectures'.
-- **Depth grid.** The proposal states 2 to 32; the specific set (2, 4, 8, 16, 32 versus
-  adding 24) is not yet fixed. Belongs to `experiments`.
-- **Weight initialization.** Left to PyG defaults unless the depth-32 runs show
-  initialization-dependent failure, which the epoch-0 capture is designed to detect.
+- **D-001 C1 narrowing.** Done: the clause now reads "under `LastLayerReadout`," with a
+  D-001 changelog line recording the narrowing (`DECISIONS.md`, 2026-07-19 entries under
+  C1).
+- **`hiddenDim` value.** Resolved: 64 (D-023), used on every arm except the fidelity arm
+  E, which uses 16 to reproduce Kipf & Welling's published setting.
+- **GAT head handling.** Resolved (D-023): `hiddenDim = 64` is the **total** width across
+  heads, not per-head. `GatModel` runs 8 attention heads throughout; the final,
+  logit-emitting layer under `LastLayerReadout` uses a single head so its output is
+  exactly `outDim` wide with no concatenation, matching Veličković et al. The
+  `_GatConvAdapter` divides the requested total output width by `heads` before
+  constructing `GATConv`, so GAT's capacity at a given `hiddenDim` matches GCN's rather
+  than being inflated by `numHeads`.
+- **GCNII and `x0` width.** Resolved (D-034): an uncounted input projection and,
+  conditionally, an uncounted output projection — see the Implementation plan note on
+  `GcniiModel` above. Depth stays a hop count; the "does the projection count toward
+  `numLayers`" question is answered "no" on both ends. The secondary consequence flagged
+  here (whether GCNII's `layerEmbeddings[0]` is the projected tensor) does not arise:
+  index 0 is raw `X` for GCNII exactly as for every other architecture.
+- **Depth grid.** Resolved (D-027): `{2, 4, 8, 16, 32}`, log-spaced, no 24.
+- **Weight initialization.** Left to PyG defaults, as stated — no depth-32
+  initialization-dependent *failure* was found (the trigger condition here never fired;
+  GCN and GAT's epoch-0 captures show the expected clean collapse per F-002). What the
+  epoch-0 investigation did surface, orthogonally, is that the three architectures do not
+  all use the same PyG default: `GCNConv`/`GATConv` pass `weight_initializer='glorot'`
+  explicitly, while `SAGEConv.lin_l`/`lin_r` pass none and fall back to PyTorch's
+  `nn.Linear` default, `kaiming_uniform` (verified via `inspect.getsource`, F-002). This
+  is a real cross-architecture difference worth a sentence in the report, but it does not
+  change the decision to leave initialization at whatever each conv's PyG default is.

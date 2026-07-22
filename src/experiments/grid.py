@@ -1,4 +1,4 @@
-"""RunConfig and BuildGrid — the declarative sweep grid (D-027 through D-029, D-031).
+"""RunConfig and BuildGrid: the declarative sweep grid.
 
 Pure enumeration: no side effects, no model construction, no I/O. The runner
 (runner.py) is the only thing that executes what this module describes.
@@ -14,17 +14,17 @@ OUT_DIM = 7
 DEPTHS = [2, 4, 8, 16, 32]
 SEEDS = list(range(10))
 
-DEFAULT_HIDDEN_DIM = 64  # D-023, every arm except E
-FIDELITY_HIDDEN_DIM = 16  # D-023's published-baseline reproduction, arm E only
+DEFAULT_HIDDEN_DIM = 64  # every arm except E
+FIDELITY_HIDDEN_DIM = 16  # published-baseline reproduction width, arm E only
 
-# provisional D-029 published-baseline values; arm F's winner overwrites these
-# three module constants once the search completes and is aggregated
+# provisional published-baseline values; arm F's winner overwrites these three
+# module constants once the search completes and is aggregated
 DEFAULT_LEARNING_RATE = 0.01
 DEFAULT_DROPOUT = 0.5
 DEFAULT_WEIGHT_DECAY = 5e-4
 
-DEFAULT_MAX_EPOCHS = 1000  # D-018
-DEFAULT_PATIENCE = 100  # D-018
+DEFAULT_MAX_EPOCHS = 1000
+DEFAULT_PATIENCE = 100
 
 ARM_B_MITIGATIONS: list[list[str]] = [["residual"], ["pairnorm"], ["jk"], ["pairnorm", "residual"]]
 
@@ -55,12 +55,12 @@ def _ReadoutFor(mitigations: list[str]) -> str:
 
 
 def _ShouldSaveEmbeddingsForArmA(convType: str, depth: int, seed: int) -> bool:
-    # D-031: baseline half of the ten flagged runs -- gcn, seed 0, depth in {2, 32}
+    # baseline half of the ten flagged runs: gcn, seed 0, depth in {2, 32}
     return convType == "gcn" and seed == 0 and depth in (2, 32)
 
 
 def _ShouldSaveEmbeddingsForArmB(depth: int, seed: int) -> bool:
-    # D-031: mitigated half -- arm B is already gcn-only, so only seed/depth gate
+    # mitigated half: arm B is already gcn-only, so only seed/depth gate
     return seed == 0 and depth in (2, 32)
 
 
@@ -210,8 +210,8 @@ def BuildGrid(arm: str, armDMitigation: list[str] | None = None) -> list[RunConf
     """Pure enumeration of one arm's configurations; no I/O, no model construction.
 
     `armDMitigation` is required only for arm D, since it is not known until
-    arm B's aggregate result names the most effective mitigation (open question
-    in experiments_spec.md, resolved by the caller, not here).
+    arm B's aggregate result names the most effective mitigation; the caller
+    resolves it, not this function.
     """
     if arm == "A":
         return _BuildArmA()
@@ -222,8 +222,8 @@ def BuildGrid(arm: str, armDMitigation: list[str] | None = None) -> list[RunConf
     if arm == "D":
         if armDMitigation is None:
             raise ValueError(
-                "arm D requires armDMitigation, the mitigation arm B found most effective "
-                "-- not known until B's results are aggregated"
+                "arm D requires armDMitigation, the mitigation arm B found most effective, "
+                "not known until B's results are aggregated"
             )
         return _BuildArmD(armDMitigation)
     if arm == "E":

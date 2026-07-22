@@ -1,4 +1,4 @@
-"""Test plan for viz_spec.md."""
+"""Test plan for viz: aggregation, figures, and tables."""
 
 from __future__ import annotations
 
@@ -25,6 +25,7 @@ from viz import (
     PlotMadVsDepth,
     PlotMitigationAblation,
 )
+from viz.aggregation import GeometricMean
 from viz.figures import FIGURE_WIDTH_INCHES, MIN_FONT_SIZE, _NewFigure
 
 
@@ -138,12 +139,12 @@ def test_band_is_read_not_recomputed() -> None:
     record = _MakeRecord(
         readout="jk",
         numLayers=numLayers,
-        bandIndices=[1, 2, 3, 4],  # 1..L under JK, per D-001 C1
+        bandIndices=[1, 2, 3, 4],  # 1..L under JK
         dirichletEnergy=[1.0, 2.0, 1.5, 1.0, 0.5],
     )
     bandIndices, normalizedEnergy = EnergyCurve(record, "checkpointMetrics")
     assert bandIndices == [1, 2, 3, 4]
-    assert len(normalizedEnergy) == 4  # L points, not L-1 -- the JK truncation regression test
+    assert len(normalizedEnergy) == 4  # L points, not L-1: the JK truncation regression test
 
 
 def test_normalization_reference() -> None:
@@ -153,17 +154,43 @@ def test_normalization_reference() -> None:
 
 
 def test_nan_propagation_not_fabricated_to_zero() -> None:
-    # the L=2 LastLayerReadout case (metrics_spec.md): contractionSlope is
-    # legitimately nan. BuildTable/Aggregate must preserve it, not coerce to 0
-    # (there is no dedicated slope plot yet -- viz_spec.md's own open question
-    # leaves that undecided -- so this is tested at the aggregation layer,
-    # which any future slope plot would read from)
+    # the L=2 LastLayerReadout case: contractionSlope is legitimately nan.
+    # BuildTable/Aggregate must preserve it, not coerce to 0. There is no
+    # dedicated slope plot yet, so this is tested at the aggregation layer,
+    # which any future slope plot would read from
     records = [_MakeRecord(numLayers=2, seed=s, contractionSlope=float("nan")) for s in range(3)]
     table = BuildTable(records)
     assert table["checkpointContractionSlope"].isna().all()
 
     agg = Aggregate(table, ["numLayers"])
     assert math.isnan(agg["checkpointContractionSlope_mean"].iloc[0])
+
+
+def test_geometric_mean_matches_known_value() -> None:
+    assert GeometricMean([2.0, 8.0]) == pytest.approx(4.0, abs=1e-9)
+    assert GeometricMean([1.0, 4.0, 16.0]) == pytest.approx(4.0, abs=1e-9)
+
+
+def test_geometric_mean_resists_skew_unlike_arithmetic() -> None:
+    # nine seeds at 5.0, one outlier seed at 50.0: the shape of the real
+    # per-depth skew PlotEnergyShift's docstring describes, exaggerated so the
+    # two means clearly disagree
+    values = [5.0] * 9 + [50.0]
+    arithmeticMean = sum(values) / len(values)
+    geometricMean = GeometricMean(values)
+    assert geometricMean < arithmeticMean
+    # the geometric mean sits much closer to the nine typical seeds than the
+    # arithmetic mean does; the arithmetic mean is dragged toward the outlier
+    assert abs(geometricMean - 5.0) < abs(arithmeticMean - 5.0)
+    assert arithmeticMean == pytest.approx(9.5, abs=1e-9)
+
+
+def test_geometric_mean_floors_before_log() -> None:
+    # a per-dimension energy can be exact zero in float32 for a collapsed
+    # run, the same reason FitContractionSlope has a floor; GeometricMean
+    # must not raise on log(0)
+    result = GeometricMean([0.0, 1e-6, 1e-6])
+    assert math.isfinite(result)
 
 
 def test_tsne_determinism() -> None:

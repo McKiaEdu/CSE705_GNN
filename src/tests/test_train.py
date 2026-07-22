@@ -1,4 +1,4 @@
-"""Test plan for train_spec.md."""
+"""Test plan for train: the training loop and results record."""
 
 from __future__ import annotations
 
@@ -87,8 +87,8 @@ def test_checkpoint_restore_is_real(cora, coraMetrics) -> None:
     model = _BuildGcn(numLayers=2)
     record = TrainRun(model, cora, config, coraMetrics)
     assert record["results"]["bestEpoch"] != record["results"]["epochsRun"]
-    # regression test for D-020's ordering: reversing final-capture-then-restore
-    # would make finalMetrics a duplicate of checkpointMetrics on every run
+    # regression test for the final-capture-then-restore ordering: reversing
+    # it would make finalMetrics a duplicate of checkpointMetrics on every run
     assert record["finalMetrics"]["dirichletEnergy"] != record["checkpointMetrics"]["dirichletEnergy"]
 
 
@@ -189,13 +189,13 @@ def smokeRunRecord(cora, coraMetrics) -> dict:
     model = GcnModel(
         numLayers=2,
         inDim=IN_DIM,
-        hiddenDim=16,  # published-fidelity arm, D-023
+        hiddenDim=16,  # published-fidelity width
         outDim=OUT_DIM,
         dropout=0.5,
         layerHooks=[],
         readout=LastLayerReadout(),
     )
-    config = TrainConfig(seed=0)  # D-018 defaults: patience=100, maxEpochs=1000
+    config = TrainConfig(seed=0)  # defaults: patience=100, maxEpochs=1000
     return TrainRun(model, cora, config, coraMetrics)
 
 

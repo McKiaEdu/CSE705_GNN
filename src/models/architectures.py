@@ -1,8 +1,8 @@
 """Per-architecture subclasses. Each supplies conv construction; GcnModel, SageModel,
-and GatModel supply only BuildLayerConv and reuse the base Forward loop unchanged
-(D-006). GcniiModel overrides both __init__ and Forward: GCN2Conv's equal-width
-constraint does not fit the generic per-layer construction, so it is resolved with
-uncounted input/output projections per D-034 instead.
+and GatModel supply only BuildLayerConv and reuse the base Forward loop unchanged.
+GcniiModel overrides both __init__ and Forward: GCN2Conv's equal-width constraint
+does not fit the generic per-layer construction, so it is resolved with uncounted
+input/output projections instead.
 """
 
 from __future__ import annotations
@@ -31,7 +31,7 @@ class SageModel(GnnModel):
 
 
 class GatModel(GnnModel):
-    """8 attention heads throughout (D-023). The logit-emitting final layer under
+    """8 attention heads throughout. The logit-emitting final layer under
     LastLayerReadout uses a single head so its output is exactly outDim wide with
     no concatenation, matching Velickovic et al."""
 
@@ -46,13 +46,12 @@ class GatModel(GnnModel):
 class GcniiModel(GnnModel):
     """GCNII (Chen et al. 2020, arXiv:2007.02133) via PyG's GCN2Conv.
 
-    Resolves the "GCNII and x0 width" open question per D-034: an uncounted
-    Linear(inDim, hiddenDim) input projection and, under LastLayerReadout, an
-    uncounted Linear(hiddenDim, outDim) output projection wrap a stack of exactly
-    `numLayers` GCN2Conv hops, so depth stays a hop count comparable with the
-    other three architectures. `alpha`/`theta` are GCN2Conv's own architecture
-    hyperparameters; their value is deferred to `experiments` (D-034), so they are
-    required constructor arguments with no baked-in default.
+    An uncounted Linear(inDim, hiddenDim) input projection and, under
+    LastLayerReadout, an uncounted Linear(hiddenDim, outDim) output projection
+    wrap a stack of exactly `numLayers` GCN2Conv hops, so depth stays a hop
+    count comparable with the other three architectures. `alpha`/`theta` are
+    GCN2Conv's own hyperparameters with no baked-in default; the caller
+    supplies them.
     """
 
     CONV_TYPE = "gcnii"
@@ -88,10 +87,10 @@ class GcniiModel(GnnModel):
 
     def Forward(self, x: Tensor, edgeIndex: Tensor) -> tuple[Tensor, list[Tensor]]:
         layerEmbeddings: list[Tensor] = [x]
-        # input projection is uncounted (D-034): performs the 1433 -> hiddenDim
-        # width change GCN2Conv structurally cannot do; its output seeds every
+        # input projection is uncounted: performs the 1433 -> hiddenDim width
+        # change GCN2Conv structurally cannot do; its output seeds every
         # layer's fixed initial-residual term x0 but is never tapped into
-        # layerEmbeddings, which keeps index 0 raw X per D-001 C1
+        # layerEmbeddings, which keeps index 0 raw X
         h = torch.relu(self.inputProjection(x))
         h = self.dropoutLayer(h)
         x0 = h
@@ -102,8 +101,8 @@ class GcniiModel(GnnModel):
                 h = hook.Apply(h, hPrev, edgeIndex)
             isFinalAndLogits = (l == self.numLayers) and self.readout.FinalLayerIsLogits
             if isFinalAndLogits:
-                # output projection stands in for the final conv's width change
-                # (D-034); replaces the activation rather than following it
+                # output projection stands in for the final conv's width
+                # change; replaces the activation rather than following it
                 h = self.outputProjection(h)
             else:
                 h = torch.relu(h)

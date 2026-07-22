@@ -1,14 +1,15 @@
-"""BuildModel, RunOne, RunSweep, ResultPath — construction and orchestration.
+"""BuildModel, RunOne, RunSweep, ResultPath: construction and orchestration.
 
-The only component that writes to results/ (D-022, D-030). Realizes D-030
-(idempotent, atomic writes) and D-039 (record-and-continue failure handling).
+The only component that writes to results/. Sweeps are idempotent (a run
+whose result already exists is skipped unless forced) via atomic writes, and
+a failing run is recorded rather than aborting the sweep.
 
 ResultPath and RunSweep are arm-agnostic: whoever orchestrates the six arms is
 responsible for calling RunSweep(BuildGrid("E"), "results/fidelity") and
 RunSweep(BuildGrid("F"), "results/hpsearch") separately from
-RunSweep(BuildGrid(arm), "results") for arm in A-D (D-040) -- arm E's
-hiddenDim=16 and arm F's varying hyperparameters are not encoded in the C3
-filename stem, so run into one flat directory they silently collide with arm A.
+RunSweep(BuildGrid(arm), "results") for arm in A-D. Arm E's hiddenDim=16 and
+arm F's varying hyperparameters are not encoded in the results filename stem,
+so run into one flat directory they silently collide with arm A.
 """
 
 from __future__ import annotations
@@ -39,7 +40,7 @@ GCNII_LAMBDA = 0.5
 
 
 def _BuildLayerHooks(mitigations: Sequence[str]) -> list[LayerHook]:
-    """Residual before PairNorm regardless of input order (D-007), by construction."""
+    """Residual before PairNorm regardless of input order, by construction."""
     hooks: list[LayerHook] = []
     if "residual" in mitigations:
         hooks.append(ResidualHook())
@@ -84,12 +85,12 @@ def BuildModel(config: RunConfig) -> GnnModel:
 
 
 def ResultPath(config: RunConfig, resultsDir: str, includeHyperparams: bool = False) -> str:
-    """The sole expression of the C3 filename convention.
+    """The sole expression of the results filename convention.
 
-    `includeHyperparams` appends learningRate/dropout/weightDecay to the stem
-    (D-040) -- needed only for arm F, whose 8 hyperparameter combinations per
-    seed are otherwise indistinguishable from each other by convType/mitigations
-    /depth/seed alone. Reads the config's own field values directly rather than
+    `includeHyperparams` appends learningRate/dropout/weightDecay to the stem,
+    needed only for arm F, whose 8 hyperparameter combinations per seed are
+    otherwise indistinguishable from each other by convType/mitigations/depth
+    /seed alone. Reads the config's own field values directly rather than
     comparing against the DEFAULT_* module constants, which are mutated in
     place once arm F's winner is known and would make the suffix's presence
     depend on call-time global state instead of the config itself.
@@ -105,9 +106,9 @@ def RunOne(config: RunConfig, data: Data, metricsInstrument: OversmoothingMetric
     """Builds the model, calls TrainRun, returns the record. Does not write.
 
     When config.saveEmbeddings is set, the returned dict carries a transient
-    "_embeddingsToSave" key (D-031) that RunSweep pops off and writes as .pt
-    files before serializing the record -- the written JSON record itself is
-    unaffected and still conforms to C3 exactly.
+    "_embeddingsToSave" key that RunSweep pops off and writes as .pt files
+    before serializing the record; the written JSON record itself is
+    unaffected.
     """
     isJkInMitigations = "jk" in config.mitigations
     isJkReadout = config.readout == "jk"
@@ -130,10 +131,10 @@ def RunOne(config: RunConfig, data: Data, metricsInstrument: OversmoothingMetric
     record = TrainRun(model, data, trainConfig, metricsInstrument)
 
     if config.saveEmbeddings:
-        # TrainRun leaves model at its checkpoint weights when it returns
-        # (D-020); one more eval-mode forward on those same weights recovers
-        # the raw tensors CaptureMetrics only reduced to scalars, without
-        # changing train/'s own capture contract (C5)
+        # TrainRun leaves model at its checkpoint weights when it returns; one
+        # more eval-mode forward on those same weights recovers the raw
+        # tensors CaptureMetrics only reduced to scalars, without touching
+        # train/'s own capture logic
         model.eval()
         with torch.no_grad():
             _, layerEmbeddings = model.Forward(data.x, data.edge_index)
@@ -146,7 +147,7 @@ def RunOne(config: RunConfig, data: Data, metricsInstrument: OversmoothingMetric
 
 def _AtomicWrite(path: str, writeFn) -> None:
     """Writes via a temporary file in the same directory, then renames, so a
-    file is either complete or absent (D-030)."""
+    file is either complete or absent."""
     directory = os.path.dirname(path) or "."
     fd, tmpPath = tempfile.mkstemp(dir=directory, suffix=".tmp")
     try:
@@ -176,10 +177,10 @@ def RunSweep(
     includeHyperparamsInPath: bool = False,
 ) -> None:
     """Iterates configs, skipping any whose result already exists unless
-    force=True. Failures are recorded, not raised (D-039): the sweep continues.
+    force=True. Failures are recorded, not raised: the sweep continues.
 
-    `includeHyperparamsInPath` is passed through to ResultPath (D-040); the
-    driver sets it True only when sweeping arm F.
+    `includeHyperparamsInPath` is passed through to ResultPath; the driver
+    sets it True only when sweeping arm F.
     """
     os.makedirs(resultsDir, exist_ok=True)
 
@@ -200,7 +201,7 @@ def RunSweep(
 
         try:
             record = RunOne(config, data, metricsInstrument)
-        except Exception as error:  # noqa: BLE001 -- deliberately broad, D-039
+        except Exception as error:  # noqa: BLE001, deliberately broad so one failing run does not abort the sweep
             failed += 1
             failureRecord = {
                 "runId": os.path.basename(path)[: -len(".json")],
@@ -208,7 +209,7 @@ def RunSweep(
                 "traceback": traceback.format_exc(),
             }
             _AtomicWriteJson(failurePath, failureRecord)
-            print(f"FAILED: {path} -- {error}")
+            print(f"FAILED: {path} - {error}")
             continue
 
         embeddingsToSave = record.pop("_embeddingsToSave", None)

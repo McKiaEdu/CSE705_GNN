@@ -1,4 +1,4 @@
-"""Test plan for experiments_spec.md."""
+"""Test plan for experiments: the sweep grid and orchestration."""
 
 from __future__ import annotations
 
@@ -48,12 +48,11 @@ def test_grid_purity() -> None:
 
 def test_no_duplicate_result_paths(tmp_path) -> None:
     # arms E and F write to their own subdirectories, and arm F additionally
-    # needs its hyperparameters in the filename itself (D-040): the C3 stem
-    # does not encode hiddenDim or the training hyperparameters, so within one
-    # flat directory arm E collides exactly with arm A's gcn-depth-2 subset,
-    # and arm F's 8 per-seed hyperparameter combinations collapse onto one
-    # filename each even within their own subdirectory -- verified by hand
-    # before being treated as settled
+    # needs its hyperparameters in the filename itself: the results filename
+    # stem does not encode hiddenDim or the training hyperparameters, so
+    # within one flat directory arm E collides exactly with arm A's
+    # gcn-depth-2 subset, and arm F's 8 per-seed hyperparameter combinations
+    # collapse onto one filename each even within their own subdirectory
     paths: list[str] = []
     for arm in ("A", "B", "C"):
         paths.extend(ResultPath(config, str(tmp_path)) for config in BuildGrid(arm))
@@ -68,17 +67,18 @@ def test_no_duplicate_result_paths(tmp_path) -> None:
 
 
 def test_arm_e_and_f_collide_within_a_flat_directory(tmp_path) -> None:
-    # the failure mode D-040 fixes, pinned down as a regression test: without
-    # separate subdirectories, arm E exactly duplicates 10 of arm A's paths and
-    # arm F's 24 configs collapse onto 3 already-claimed paths
+    # the failure mode the subdirectory scheme fixes, pinned down as a
+    # regression test: without separate subdirectories, arm E exactly
+    # duplicates 10 of arm A's paths and arm F's 24 configs collapse onto 3
+    # already-claimed paths
     flatPaths = [ResultPath(c, str(tmp_path)) for c in BuildGrid("A") + BuildGrid("E") + BuildGrid("F")]
     assert len(set(flatPaths)) == 150  # arm A's 150 unique paths; E and F add none
 
 
 def test_arm_f_still_collides_within_its_own_subdirectory_without_hyperparams_in_path(tmp_path) -> None:
-    # subdirectory isolation alone is not enough for arm F (D-040's same-day
-    # refinement): its 8 hyperparameter combinations per seed are
-    # indistinguishable by convType/mitigations/depth/seed alone
+    # subdirectory isolation alone is not enough for arm F: its 8
+    # hyperparameter combinations per seed are indistinguishable by
+    # convType/mitigations/depth/seed alone
     armFPaths = [ResultPath(c, str(tmp_path / "hpsearch")) for c in BuildGrid("F")]
     assert len(set(armFPaths)) == 3  # only the 3 distinct seeds distinguish anything
 
@@ -258,9 +258,10 @@ def test_arm_e_width() -> None:
 
 
 def test_embedding_tensor_count(tmp_path) -> None:
-    # the ten D-031-flagged configs, sped up with tiny maxEpochs/patience -- this
-    # test asserts file-writing mechanics (D-001 C1's band-derivation showing up
-    # in the file system), not learning quality, so full training is unneeded
+    # the ten embedding-flagged configs, sped up with tiny maxEpochs/patience:
+    # this test asserts file-writing mechanics (the derived comparable band
+    # showing up in the file system), not learning quality, so full training
+    # is unneeded
     flaggedConfigs = [c for c in BuildGrid("A") + BuildGrid("B") if c.saveEmbeddings]
     assert len(flaggedConfigs) == 10
     fastConfigs = [RunConfig(**{**c.__dict__, "maxEpochs": 3, "patience": 3}) for c in flaggedConfigs]

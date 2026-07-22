@@ -1,7 +1,7 @@
-"""LayerHook and Readout protocols — the composition seam between models and mitigations.
+"""LayerHook and Readout protocols: the composition seam between models and mitigations.
 
-Declared here, not in mitigations, so mitigations can depend on models without models
-depending on mitigations (D-006's dependency-inversion direction).
+Declared here, not in mitigations, so mitigations can depend on models without
+models depending on mitigations.
 """
 
 from __future__ import annotations
@@ -27,8 +27,8 @@ class Readout(Protocol):
 
 
 class LastLayerReadout:
-    """Null-object default readout (D-009): the last conv's output IS the logits,
-    so the unmitigated baseline and every mitigated variant run one code path."""
+    """Null-object default readout: the last conv's output IS the logits, so
+    the unmitigated baseline and every mitigated variant run one code path."""
 
     FinalLayerIsLogits = True
     NAME = "lastLayer"

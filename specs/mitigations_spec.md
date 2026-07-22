@@ -158,7 +158,7 @@ layer list, which is `numLayers` iterations and is what the aggregator consumes.
 
 Every item here is provisional until confirmed.
 
-- Python / version: Python 3.12.13.
+- Python / version: Python 3.14.4 (matches `data_spec.md`'s corrected pin).
 - Libraries / role: `torch`, `torch_geometric` 2.8.0 (core — `JumpingKnowledge`).
 - Compute / runtime: negligible. Both hooks are elementwise or per-row reductions on a
   `[2708, 64]` tensor; the JK aggregation is a max over at most 32 such tensors.
@@ -236,19 +236,21 @@ result after the depth sweep itself. Three points worth stating explicitly:
 
 ## Open questions
 
-- **GCNII's `alpha` and `lambda`.** Not this module's concern under D-008, but they are
-  unset and belong to `models` or `experiments`. Flagged here so they do not fall through
-  the gap between the two specs.
-- **PairNorm's rescaling denominator.** PN-SI divides each row by its own norm. The
-  paper also defines a variant scaling by the mean row norm across nodes (PN-SCS). The
-  authors recommend either for GCN and GAT. PN-SI is chosen; confirm the exact PN-SI
-  formula against the paper before implementation rather than inferring it from the
+- **GCNII's `alpha` and `lambda`.** Resolved (D-042): `alpha = 0.1`, `theta = 0.5`,
+  matching Chen et al.'s published Cora configuration (arXiv:2007.02133, Table 6).
+  **Terminology note:** the paper's `lambda` is PyG's `GCN2Conv(theta=...)` keyword —
+  the code and D-042 both use `theta`, not `lambda`; this spec's own prose above ("its
+  `alpha` and `lambda`") should be read as the paper's naming, not the constructor's.
+- **PairNorm's rescaling denominator.** Resolved (D-025): PN-SI as specified — center by
+  subtracting the column mean over nodes, then divide each row by its own L2 norm and
+  multiply by the fixed scale, confirmed against the paper rather than inferred from the
   variant name.
-- **Whether `["jk"]` belongs in `config.mitigations` at all.** JK is a readout, not a
-  hook, and `config.readout` already records it (D-016). Listing it in both places is
-  redundant and creates two fields that can disagree. Either drop `"jk"` from the
-  mitigations list and let the readout field carry it, or keep it for aggregation
-  convenience and assert consistency at write time. Decide before `experiments`.
-- **Residual on the first layer via projection.** Rejected here, but if the residual arm
-  shows no benefit at depth it is worth knowing whether the missing layer-1 residual is
-  why. Recoverable as a one-off diagnostic run; not built into the ablation.
+- **Whether `["jk"]` belongs in `config.mitigations` at all.** Resolved (D-028): kept,
+  for the filename-collision reason given there, with a write-time assertion
+  (`("jk" in mitigations) == (readout == "jk")`) so the two fields cannot silently
+  disagree.
+- **Residual on the first layer via projection.** Still rejected, still not built into
+  the ablation, and no one-off diagnostic run has been made. Remains open — F-005 does
+  show the residual arm at depth 32 underperforming even the unmitigated baseline
+  (19.25% vs 24.07%), which is exactly the result that would make this diagnostic worth
+  running if time permits.

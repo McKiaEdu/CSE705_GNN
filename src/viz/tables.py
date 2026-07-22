@@ -1,4 +1,4 @@
-"""ExportTable — writes an aggregate table as markdown or LaTeX for direct
+"""ExportTable: writes an aggregate table as markdown or LaTeX for direct
 inclusion in the report.
 """
 
@@ -10,8 +10,8 @@ import pandas as pd
 
 
 def _ToMarkdown(table: pd.DataFrame) -> str:
-    # not pandas' own to_markdown(), which pulls in the tabulate dependency;
-    # viz_spec.md names only matplotlib/pandas/scikit-learn/torch as runtime deps
+    # not pandas' own to_markdown(), which pulls in the tabulate dependency,
+    # for one extra table format this project can render without it
     columns = [str(c) for c in table.columns]
     header = "| " + " | ".join(columns) + " |"
     separator = "| " + " | ".join("---" for _ in columns) + " |"

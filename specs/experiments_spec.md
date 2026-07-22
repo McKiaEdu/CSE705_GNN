@@ -150,14 +150,34 @@ Contract properties this component must honor:
   before PairNorm) and selects the readout from `config.readout`. Reads GCNII's
   `alpha = 0.1` and `lambda = 0.5` from module constants, not from `RunConfig`, since
   they apply to one convType only and would be null fields on every other run.
-- `RunOne(config, data, metrics)` — defined here. Builds the model, calls
-  `TrainRun(model, data, TrainConfig(...), metrics)`, returns the record. Does not write.
+- `RunOne(config, data, metrics)` — defined here. **Revised**: calls `SetSeed(config.seed)`
+  *before* `BuildModel`, not only inside `TrainRun`. The original description below
+  ("builds the model, calls `TrainRun`") missed that weight initialization happens at
+  model construction time — `train_spec.md`'s `SetSeed` call, made at the top of
+  `TrainRun`, runs strictly after `BuildModel` has already drawn from the global RNG.
+  Without the seed set before construction, two `RunOne` calls with the same
+  `config.seed` produced different initial weights, silently breaking the
+  determinism this component's own test plan (below) and the README's reproducibility
+  claim (D-022) both assume. Flow is therefore: `SetSeed(config.seed)`, `BuildModel`,
+  `TrainRun(model, data, TrainConfig(...), metrics)`, return the record. Does not write.
 - `RunSweep(arms, resultsDir, force)` — defined here. For each config: compute
   `ResultPath`; if it exists and not `force`, skip and continue; else `RunOne`, assert
   the jk/readout consistency, serialize. Prints a running count and the skip count so an
   interrupted sweep reports what remains.
 - `ResultPath(config, resultsDir)` — defined here. `<convType>_<mitigations>_d<depth>_s<seed>.json`
   with `<mitigations>` the sorted list joined by `+`, or `none` when empty.
+  **Revised (D-040):** this bare convention collides across arms, since it encodes
+  neither `hiddenDim` nor the hyperparameter values that vary within an arm. Arm E
+  (`hiddenDim=16`) and arm F (8 hyperparameter combinations) would otherwise silently
+  overwrite arm A's filenames, and arm F's 8 combinations would additionally collide
+  with each other even inside a shared subdirectory. Fixed with two additions:
+  - Arms E and F write under dedicated subdirectories, `results/fidelity/` and
+    `results/hpsearch/`, rather than directly under `results/`.
+  - `ResultPath` takes an `includeHyperparams: bool` parameter; when set (arm F only),
+    `learningRate`, `dropout`, and `weightDecay` are embedded directly in the filename,
+    since three seeds times 8 combinations otherwise collapse onto identical stems
+    within `results/hpsearch/` alone.
+  Neither change alters the `534` total run count or any other arm's filename.
 - `AggregateArm(resultsDir, groupBy) -> ...` — NOT defined here. Aggregation and
   plotting belong to `viz/`; `experiments` produces records and stops.
 
@@ -175,7 +195,7 @@ are over configurations and are inherently sequential.
 
 Every item here is provisional until confirmed.
 
-- Python / version: Python 3.12.13.
+- Python / version: Python 3.14.4 (matches `data_spec.md`'s corrected pin).
 - Libraries / role: `torch`, `torch_geometric` 2.8.0. No orchestration framework — a
   plain loop, since the sweep is sequential and single-machine.
 - Compute: CPU wheels, device-agnostic. **Wall-clock is deliberately not estimated in
@@ -197,7 +217,11 @@ Every item here is provisional until confirmed.
 ## Outputs & artifacts
 
 - `results/<convType>_<mitigations>_d<depth>_s<seed>.json` — 534 files at full grid, one
-  per run, each conforming to C3.
+  per run, each conforming to C3. **Revised (D-040):** this is the convention for arms
+  A, B, C, D only. Arm E writes to `results/fidelity/<convType>_<mitigations>_d<depth>_s<seed>.json`
+  and arm F writes to `results/hpsearch/<convType>_<mitigations>_d<depth>_s<seed>_lr<learningRate>_do<dropout>_wd<weightDecay>.json`
+  (hyperparameters embedded via `includeHyperparams=True`). See the `ResultPath` note
+  above; the 534 total is unaffected.
 - `results/embeddings/<runId>_l<index>.pt` — 16 tensors from the ten flagged runs,
   roughly 11 MB total, consumed only by `viz`. Two per flagged run (the first and last
   band indices), except where those coincide — depth-2 runs under `LastLayerReadout`,
@@ -266,21 +290,23 @@ README makes. Three points for the writeup:
 
 ## Open questions
 
-- **Wall-clock feasibility.** Unresolved by design. Measure one depth-32 run before
-  committing. The pre-agreed reduction, if needed, is seeds 10 -> 5 on arms B and D only.
-- **Arm D's mitigation is not yet known**, since it depends on arm B's aggregate. The
-  grid function takes it as an argument; the value is filled in after B completes.
-- **Failure handling.** If a single run raises — a `nan` loss at depth 32, say — does the
-  sweep abort or record the failure and continue? Recording and continuing is more useful
-  at this run count, but it needs a failure marker in `results/` so the gap is visible at
-  aggregation rather than looking like a run that was never scheduled. Decide before the
-  first full sweep.
-- **GCNII weight decay.** Chen et al. use 0.01 on convolutional layers and 5e-4 on dense
-  layers; D-019 holds a uniform 5e-4 for comparability. If GCNII underperforms its
-  published depth behavior, this is the first suspect. Whether to run a single
-  GCNII-at-published-decay diagnostic is undecided.
-- **Whether arm F's three seeds are enough** to separate eight configurations whose
-  validation accuracies may differ by less than seed noise. The three-level selection
-  rule makes the tie case deterministic rather than leaving it to judgment, but if every
-  configuration ties at the first two levels, that is itself worth one sentence in the
-  report: the study is insensitive to these hyperparameters in this range.
+- **Wall-clock feasibility.** Resolved: the full 534-run grid completed on schedule at
+  the full seed count; the pre-agreed seeds 10 -> 5 reduction on arms B and D was never
+  needed.
+- **Arm D's mitigation.** Resolved (D-041): the winner passed to `BuildGrid("D", ...)` is
+  Jumping Knowledge, selected as arm B's highest mean test accuracy at depth 32 (F-005:
+  JK 73.13% versus PairNorm 58.07%, residual 19.25%, PairNorm+residual 24.36%, baseline
+  24.07%).
+- **Failure handling.** Resolved (D-039): record and continue, with a `.failed.json`
+  marker so a failed run is visible at aggregation rather than looking unscheduled.
+- **GCNII weight decay.** Not run. GCNII improved with depth under the uniform 5e-4
+  decay (F-004: 78.45% at depth 2 to 83.26% at depth 32), so the suspected
+  underperformance this diagnostic was meant to investigate did not materialize, and no
+  GCNII-at-published-decay run was made.
+- **Whether arm F's three seeds are enough.** Resolved (F-007): no — the winning
+  configuration's margin over other configurations is comparable to its own seed-to-seed
+  standard deviation, so three seeds do not cleanly separate the eight configurations.
+  The three-level selection rule still produced a deterministic winner
+  (`lr=0.01, dropout=0.5, weightDecay=5e-4`, matching the published baseline exactly),
+  and F-007 states the insensitivity-to-hyperparameters-in-this-range reading explicitly
+  rather than leaving it implicit.

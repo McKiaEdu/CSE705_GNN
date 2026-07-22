@@ -1,7 +1,7 @@
-"""GnnModel — the depth-parameterized layer stack shared by every architecture.
+"""GnnModel: the depth-parameterized layer stack shared by every architecture.
 
-Owns the layer loop (D-006); subclasses supply only BuildLayerConv. Mitigations
-attach via the layerHooks/readout composition seam, not inheritance (D-009).
+Owns the layer loop; subclasses supply only BuildLayerConv. Mitigations attach
+via the layerHooks/readout composition seam, not inheritance.
 """
 
 from __future__ import annotations
@@ -40,7 +40,7 @@ class _SageConvAdapter(nn.Module):
 class _GatConvAdapter(nn.Module):
     """Wraps GATConv to expose the uniform (x, edgeIndex, x0) call signature.
 
-    `outDim` is the TOTAL output width across heads (D-023); dividing by `heads`
+    `outDim` is the TOTAL output width across heads; dividing by `heads`
     recovers the per-head width GATConv expects when `concat=True`.
     """
 
@@ -56,8 +56,8 @@ class _GatConvAdapter(nn.Module):
 class _GcniiConvAdapter(nn.Module):
     """Wraps GCN2Conv to expose the uniform (x, edgeIndex, x0) call signature.
 
-    GCN2Conv requires x and x0 at equal width (D-034); BuildConv enforces that
-    here with a clear error rather than silently truncating or padding.
+    GCN2Conv requires x and x0 at equal width; BuildConv enforces that here
+    with a clear error rather than silently truncating or padding.
     """
 
     def __init__(self, inDim: int, outDim: int, alpha: float, theta: float, layer: int) -> None:
@@ -125,23 +125,18 @@ class GnnModel(nn.Module):
         raise NotImplementedError("subclasses supply the per-layer conv construction")
 
     def ConfigRecord(self) -> dict[str, object]:
-        """The model configuration record models_spec.md's Outputs & Artifacts
-        section requires: everything train/ needs to reconstruct this run's
-        model from its results record alone (D-022).
+        """Model configuration record for the results record: enough for
+        train/ to reconstruct this run's model on its own.
 
-        `mitigations` reads each hook's NAME if present, falling back to its
-        class name, in applied order (D-007's ordering, unsorted — C3
-        canonicalizes at aggregation time, not at storage). `readout` reads the
-        readout's NAME the same way. Duck-typed rather than importing
-        mitigations' hook/readout classes, since models must not depend on
-        mitigations (D-006's dependency-inversion direction) — this is the same
-        convention mitigations.MitigationNames uses, so the two cannot drift
-        apart even though the direction constraint keeps them as two call
-        sites rather than one shared function.
-
-        "jk" is appended to `mitigations` when the readout's own NAME is "jk",
-        matching the accepted config.mitigations/config.readout redundancy for
-        Jumping Knowledge (D-028) — again without a mitigations import.
+        Reads each hook's and the readout's NAME attribute, falling back to
+        the class name, rather than importing mitigations/ classes directly,
+        since models must not depend on mitigations. mitigations.MitigationNames
+        uses the same convention, so the two cannot drift apart even though the
+        dependency direction keeps them as separate call sites. The list stays
+        in applied order, not sorted; the canonical sorted form is built at
+        aggregation time. Appends "jk" when the readout's NAME is "jk",
+        matching the accepted mitigations/readout redundancy for Jumping
+        Knowledge.
         """
         readoutName = getattr(self.readout, "NAME", type(self.readout).__name__)
         mitigations = [getattr(hook, "NAME", type(hook).__name__) for hook in self.layerHooks]
@@ -157,7 +152,7 @@ class GnnModel(nn.Module):
         }
 
     def Forward(self, x: Tensor, edgeIndex: Tensor) -> tuple[Tensor, list[Tensor]]:
-        """Returns (logits [N, C], layerEmbeddings); the contract in D-001 C1/C2."""
+        """Returns (logits [N, C], layerEmbeddings)."""
         h = x
         x0 = x
         layerEmbeddings: list[Tensor] = [x]
@@ -169,9 +164,9 @@ class GnnModel(nn.Module):
             isFinalAndLogits = (l == self.numLayers) and self.readout.FinalLayerIsLogits
             if not isFinalAndLogits:
                 h = torch.relu(h)
-            # tapping after activation, before dropout (D-010/C2): this is the
-            # representation the next layer actually receives, independent of the
-            # stochastic dropout mask
+            # tapping after activation, before dropout: the representation the
+            # next layer actually receives, independent of the stochastic
+            # dropout mask
             layerEmbeddings.append(h)
             if not isFinalAndLogits:
                 h = self.dropoutLayer(h)
@@ -179,6 +174,6 @@ class GnnModel(nn.Module):
         return logits, layerEmbeddings
 
     def forward(self, x: Tensor, edgeIndex: Tensor) -> tuple[Tensor, list[Tensor]]:
-        # nn.Module's __call__ dispatches to lowercase forward; Forward is the
-        # PascalCase contract method every other component calls directly
+        # routing PyTorch's lowercase forward hook to the PascalCase contract
+        # method every other component calls directly
         return self.Forward(x, edgeIndex)

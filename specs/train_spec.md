@@ -161,7 +161,7 @@ epochs and over layers, both inherently sequential.
 
 Every item here is provisional until confirmed.
 
-- Python / version: Python 3.12.13 (carried from the data spec).
+- Python / version: Python 3.14.4 (matches `data_spec.md`'s corrected pin).
 - Libraries / role: `torch`, `torch_geometric` 2.8.0 (core). `scikit-learn` is
   **test-only** and belongs in `requirements-dev.txt`, not `requirements.txt`, per
   D-021 — this is stated because `data_spec` and `metrics_spec` both declare no
@@ -169,9 +169,15 @@ Every item here is provisional until confirmed.
 - Compute / runtime: CPU wheels, device-agnostic. Full-batch: the whole graph is
   forwarded per step, no mini-batching and no neighbor sampling even for GraphSAGE.
 - Optimizer: Adam. Loss: cross-entropy on `train_mask` rows only.
-- Initialization: PyG defaults (Glorot), matching Kipf & Welling's stated choice. Not
-  overridden unless the epoch-0 capture reveals initialization-dependent failure at
-  depth 32.
+- Initialization: PyG defaults, matching Kipf & Welling's stated choice for GCN. Not
+  overridden — no depth-32 initialization-dependent failure was found (F-002's epoch-0
+  captures show the expected clean collapse for GCN and GAT). **Revised**: "PyG defaults"
+  is not uniformly Glorot — verified via `inspect.getsource` (F-002) that `GCNConv` and
+  `GATConv` pass `weight_initializer='glorot'` explicitly, while `SAGEConv.lin_l`/`lin_r`
+  pass none and fall back to PyTorch's `nn.Linear` default, `kaiming_uniform`. Left
+  unoverridden regardless, since no failure triggered the stated condition, but this is a
+  genuine cross-architecture difference worth naming in the report rather than assuming
+  uniformity.
 - Confirmed assumptions:
   - Validation loss is computed in eval mode, so dropout is inactive and the stopping
     signal is not stochastic beyond the weights themselves.
@@ -252,23 +258,21 @@ a result and an assertion.
 
 ## Open questions
 
-- **`hiddenDim` value.** Still unfixed at 16 vs 64, carried from `models_spec` and
-  `metrics_spec`. It is now the last unfixed number in the config block, and it blocks
-  the smoke test's expected accuracy. Belongs to `experiments`; settle before
-  implementation.
-- **Minimum improvement delta.** "Improvement" is currently a strict decrease in
-  validation loss. With float noise a run can register improvements of `1e-9` and never
-  exhaust patience, inflating `epochsRun` without changing the model. Consider a
-  `minDelta` of `1e-4`; not yet decided, and it interacts with D-018's generous patience.
-- **Deterministic algorithms.** `torch.use_deterministic_algorithms(True)` would make
-  reruns bitwise reproducible across machines but can raise on some sparse kernels used
-  by PyG. Decide whether the reproducibility claim in the README is "same machine, same
-  seed" or stronger, and verify empirically before promising the stronger one.
-- **Test-set loss.** `EvaluateSplit` computes it and the record discards it. Costless to
-  keep; decide whether it earns a schema field or is genuinely unused.
-- **Per-architecture learning rate.** The coordinated hyperparameter search holds one
-  config fixed across all architectures and depths, which is methodologically correct for
-  isolating the depth effect but may disadvantage GAT, which is commonly trained at
-  `5e-3` on Cora. If the GAT depth-2 baseline underperforms its published number, this is
-  the cause; decide then whether to report it as a limitation or re-tune per architecture
-  and accept the confound. Belongs to `experiments`.
+- **`hiddenDim` value.** Resolved: 64 (D-023), except arm E at 16.
+- **Minimum improvement delta.** Still undecided and unimplemented: `harness.py`'s
+  improvement check is a strict `valLoss < bestValLoss` with no `minDelta`, exactly as
+  originally described. Not revisited, since generous patience (D-018) absorbs the cost
+  this open question worried about.
+- **Deterministic algorithms.** Still undecided and unimplemented:
+  `torch.use_deterministic_algorithms` is not called anywhere in the harness. The
+  reproducibility claim remains "same machine, same seed," not the stronger
+  bitwise-across-machines claim.
+- **Test-set loss.** Resolved: decided against a schema field. `EvaluateSplit` computes
+  `testLoss` in `TrainRun` and it is explicitly discarded (`del testLoss`, with a comment
+  citing this open question) rather than written into the record.
+- **Per-architecture learning rate.** Resolved by the hyperparameter search (arm F,
+  D-041/F-007): one shared configuration (`lr=0.01, dropout=0.5, weightDecay=5e-4`) is
+  frozen across every architecture and depth. The GAT confound this question anticipated
+  is accepted and stated as a limitation rather than re-tuned per architecture — F-007
+  also found the three-seed search margins were comparable to seed noise, reinforcing
+  that a per-architecture re-tune would not obviously separate configurations anyway.

@@ -1,6 +1,6 @@
-"""Figure functions -- one per report figure. matplotlib, Agg backend, sized
-for IEEE single-column width (D-033). Each function writes one PDF file; the
-aggregation layer (aggregation.py) is the only thing that computes the numbers.
+"""Figure functions: one per report figure. matplotlib, Agg backend, sized for
+IEEE single-column width. Each function writes one PDF file; the aggregation
+layer (aggregation.py) is the only thing that computes the numbers.
 """
 
 from __future__ import annotations
@@ -18,7 +18,7 @@ import pandas as pd
 import torch
 from sklearn.manifold import TSNE
 
-from .aggregation import Aggregate, EnergyCurve
+from .aggregation import Aggregate, EnergyCurve, GeometricMean
 
 FIGURE_WIDTH_INCHES = 3.5
 FIGURE_HEIGHT_INCHES = 2.6
@@ -125,9 +125,9 @@ def PlotMadVsDepth(table: pd.DataFrame, outputPath: str, capture: str = "checkpo
 
 def PlotMitigationAblation(table: pd.DataFrame, outputPath: str) -> None:
     """Arm B (4 mitigation combos) plus arm C (GCNII): test accuracy vs depth,
-    one series per mitigation -- 5 total (experiments_spec.md's open question
-    on panel count/legibility is not resolved here; this renders all 5 on one
-    axes)."""
+    one series per mitigation, 5 total. Whether this should split across
+    multiple panels for legibility is not resolved here; this renders all 5
+    on one axes."""
     fig, ax = _NewFigure()
     for seriesName in MITIGATION_SERIES_ORDER:
         if seriesName == "gcnii":
@@ -156,8 +156,8 @@ def PlotMitigationAblation(table: pd.DataFrame, outputPath: str) -> None:
 
 
 def PlotLossCurves(records: list[dict], outputPath: str, labels: list[str] | None = None) -> None:
-    """trainingCurve at depth 32, baseline vs mitigated -- the D-005 diagnostic
-    that separates "never trained" from "trained then oversmoothed"."""
+    """trainingCurve at depth 32, baseline vs mitigated: the diagnostic that
+    separates "never trained" from "trained then oversmoothed"."""
     fig, ax = _NewFigure()
     labels = labels or [r["runId"] for r in records]
     for record, label in zip(records, labels):
@@ -173,13 +173,22 @@ def PlotLossCurves(records: list[dict], outputPath: str, labels: list[str] | Non
 
 def PlotEnergyShift(table: pd.DataFrame, outputPath: str) -> None:
     """epoch0Metrics vs checkpointMetrics vs finalMetrics: three points per
-    depth, testing the C5 recorded prediction (does energy fall or rise over
-    training at a working depth)."""
+    depth, testing whether energy falls or rises over training at a working
+    depth.
+
+    Averaged across seeds with GeometricMean, not a plain mean: the per-seed
+    last-band energy is right-skewed (a minority of seeds run several times
+    higher than the rest, more so at greater depth), so an arithmetic mean is
+    pulled toward those seeds rather than describing a typical one. The same
+    reasoning applies, more severely, to the energy-ratio quantity reported
+    elsewhere; the effect here is smaller since this is raw energy rather
+    than a ratio with a near-zero denominator.
+    """
     fig, ax = _NewFigure()
     captureLabels = ["epoch0", "checkpoint", "final"]
     for depth in sorted(table["numLayers"].unique()):
         subset = table[table["numLayers"] == depth]
-        means = [subset[f"{c}EnergyAtLastBand"].mean() for c in captureLabels]
+        means = [GeometricMean(subset[f"{c}EnergyAtLastBand"]) for c in captureLabels]
         ax.plot(captureLabels, means, marker="o", markersize=4, linewidth=1.2, label=f"depth={depth}")
     ax.set_yscale("log")
     ax.set_ylabel("energy (last band index)")
@@ -188,11 +197,11 @@ def PlotEnergyShift(table: pd.DataFrame, outputPath: str) -> None:
 
 
 def PlotEmbeddingProjection(embeddingPaths: dict[str, str], labels, outputPath: str) -> None:
-    """t-SNE of saved embeddings (D-031), coloured by data.y, one panel per
-    entry in embeddingPaths (e.g. shallow vs deep). Fitted separately per panel
-    (D-032): a shared fit would impose one neighbourhood structure on both and
-    manufacture the difference the figure exists to show. random_state=0,
-    perplexity=30 -- both belong in the figure caption, per D-032."""
+    """t-SNE of saved embeddings, coloured by data.y, one panel per entry in
+    embeddingPaths (e.g. shallow vs deep). Fitted separately per panel: a
+    shared fit would impose one neighbourhood structure on both and
+    manufacture the difference the figure exists to show. random_state=0 and
+    perplexity=30 belong in the figure caption."""
     fig, axes = _NewFigure(nPanels=len(embeddingPaths))
     axes = axes if len(embeddingPaths) > 1 else [axes]
     for ax, (panelLabel, path) in zip(axes, embeddingPaths.items()):

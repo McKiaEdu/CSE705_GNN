@@ -1,7 +1,8 @@
 """Cora loading, preprocessing, and graph-invariant validation.
 
 Sole source of the graph, features, labels, and split masks used anywhere in the
-repo. Realizes D-002 (row-normalize Cora node features) and data_spec.md.
+repo. Row-normalizes Cora's node features as a fixed preprocessing step, not an
+ablation axis.
 """
 
 from __future__ import annotations
@@ -22,8 +23,8 @@ TEST_SIZE = 1000
 def LoadCora(root: str = "data", normalizeFeatures: bool = True) -> Data:
     """Loads the public-split Cora citation network via PyG's Planetoid.
 
-    `normalizeFeatures` exists for the test plan's contrast check (data_spec.md);
-    every experiment calls this with the default, per D-002.
+    `normalizeFeatures` exists only for a contrast check in the test suite;
+    every experiment calls this with the default enabled.
     """
     transform = NormalizeFeatures() if normalizeFeatures else None
     dataset = Planetoid(root=root, name="Cora", split="public", transform=transform)
@@ -52,8 +53,8 @@ def AssertGraphInvariants(data: Data) -> None:
         raise ValueError("expected an undirected graph")
 
     # confirming the loader ships the raw graph: A~ = A + I is GCNConv's job, not
-    # this component's (data_spec decision 3), so a self-loop here would mean
-    # metrics/ later double-augments when it adds its own
+    # this component's, so a self-loop here would mean metrics/ later
+    # double-augments when it adds its own
     if contains_self_loops(data.edge_index):
         raise ValueError("expected no self-loops in the raw edge_index")
 

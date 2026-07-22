@@ -1,4 +1,4 @@
-"""ResidualHook and PairNormHook — LayerHook implementations (D-006).
+"""ResidualHook and PairNormHook: LayerHook implementations.
 
 Neither carries learnable parameters, so both are plain objects rather than
 nn.Module subclasses; GnnModel stores layerHooks as a plain list, not an
@@ -12,7 +12,7 @@ from torch import Tensor
 
 
 class ResidualHook:
-    """h + hPrev when shapes match; h unchanged otherwise (D-024).
+    """h + hPrev when shapes match; h unchanged otherwise.
 
     The skip is explicit rather than incidental: a hook that silently returned
     h on any shape mismatch would let a misconfigured run report a residual arm
@@ -30,11 +30,11 @@ class ResidualHook:
 class PairNormHook:
     """PN-SI (Zhao & Akoglu, arXiv:1909.12223, Eq. 10-11 with the scale-
     individual substitution given directly below Eq. 12), verified against the
-    paper rather than inferred from the variant name (D-025's open question).
+    paper rather than inferred from the variant name.
 
     Center by the column mean over nodes, then scale each row by its own L2
     norm times `scale`: x_i -> scale * (x_i - mean) / ||x_i - mean||_2. The
-    row-norm denominator is clamped away from zero -- ReLU produces all-zero
+    row-norm denominator is clamped away from zero: ReLU produces all-zero
     rows at depth, and the paper's own formula does not need this guard because
     it was not stress-tested at that regime; the clamp is this study's addition.
     """
