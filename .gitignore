@@ -15,6 +15,7 @@
 !DECISIONS.md
 !FINDINGS.md
 !specs
+!docs
 
 # Windows "Mark of the Web" sidecar files created when downloaded files
 # are copied into WSL (NTFS Zone.Identifier alternate data streams)
