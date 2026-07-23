@@ -1,0 +1,31 @@
+$if(title)$
+\title{\bfseries $title$}
+$endif$
+$if(subtitle)$
+\usepackage{etoolbox}
+\makeatletter
+\providecommand{\subtitle}[1]{% add subtitle to \maketitle, spaced and unbolded
+  \apptocmd{\@title}{\par\vspace{8pt}{\large\mdseries #1\par}}{}{}
+}
+\makeatother
+\subtitle{$subtitle$}
+$endif$
+$-- This supports Quarto's authors normalization
+\author{$for(authors)$$it.name.literal$$if(it.email)$\\[2pt]{\small $it.email$}$endif$$sep$ \and $endfor$}
+\date{$date$}
+
+% Custom title-block spacing: keeps the \tabular/\and machinery article.cls
+% relies on for multi-author layout, but with wider, explicit gaps between
+% the title block, the author line, and the date.
+\makeatletter
+\renewcommand{\maketitle}{%
+  \begin{center}
+    {\LARGE \@title \par}
+    \vskip 1.6em
+    {\large\lineskip .5em\begin{tabular}[t]{c}\@author\end{tabular}\par}
+    \vskip 1.2em
+    {\large \@date \par}
+  \end{center}
+  \vskip 1.8em
+}
+\makeatother
