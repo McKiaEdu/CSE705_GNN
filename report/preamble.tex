@@ -1,0 +1,9 @@
+% Packages for the two hand-drawn UML diagrams in the Appendix (class
+% diagram, sequence diagram): plain TikZ, not a UML-specific package, since
+% pgf-umlcd/pgf-umlsd fail to render class-title text under this document's
+% LuaLaTeX engine (tested; works fine under pdflatex, not worth switching
+% engines this late over two figures). pdflscape rotates the wide class
+% diagram's own page to landscape without affecting the rest of the report.
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,shapes.multipart,fit,backgrounds}
+\usepackage{pdflscape}

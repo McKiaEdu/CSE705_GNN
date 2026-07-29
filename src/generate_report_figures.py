@@ -13,6 +13,7 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__)))
 
+import pandas as pd
 import torch
 
 from data import LoadCora
@@ -129,14 +130,88 @@ def main() -> None:
     ]
     armAAgg = Aggregate(armATwoLayerGcn, ["convType", "hiddenDim", "numLayers"])
     fidelityComparison = (
-        __import__("pandas")
-        .concat([fidelityAgg, armAAgg])
+        pd.concat([fidelityAgg, armAAgg])
         .sort_values("hiddenDim")[["convType", "hiddenDim", "numLayers", "testAccuracy_mean", "testAccuracy_std", "count"]]
     )
     ExportTable(fidelityComparison, os.path.join(TABLES_DIR, "fidelity_comparison.md"), "md")
     ExportTable(fidelityComparison, os.path.join(TABLES_DIR, "fidelity_comparison.tex"), "tex")
 
-    print("wrote accuracy_vs_depth, mitigation_ablation, contraction_slope, fidelity_comparison (md + tex)")
+    hpsearchTable = BuildTable(LoadRecords("results/hpsearch"))
+    hpsearchAgg = Aggregate(hpsearchTable, ["learningRate", "dropout", "weightDecay"]).sort_values(
+        "valAccuracy_mean", ascending=False
+    )
+    hpsearchSummaryCols = ["learningRate", "dropout", "weightDecay", "valAccuracy_mean", "valAccuracy_std"]
+    ExportTable(hpsearchAgg[hpsearchSummaryCols], os.path.join(TABLES_DIR, "hpsearch_summary.md"), "md")
+    ExportTable(hpsearchAgg[hpsearchSummaryCols], os.path.join(TABLES_DIR, "hpsearch_summary.tex"), "tex")
+
+    print("wrote accuracy_vs_depth, mitigation_ablation, contraction_slope, fidelity_comparison,")
+    print("      hpsearch_summary (md + tex)")
+
+    print("\n=== appendix tables ===")
+    hpsearchCols = ["learningRate", "dropout", "weightDecay", "seed", "valAccuracy", "valLoss"]
+    hpsearchFull = hpsearchTable[hpsearchCols].sort_values(
+        ["learningRate", "dropout", "weightDecay", "seed"]
+    )
+    ExportTable(hpsearchFull, os.path.join(TABLES_DIR, "hpsearch_per_seed.md"), "md")
+    ExportTable(hpsearchFull, os.path.join(TABLES_DIR, "hpsearch_per_seed.tex"), "tex")
+
+    depthSweepCols = ["convType", "numLayers", "seed", "testAccuracy", "testMacroF1"]
+    depthSweepFull = mainTable[
+        (mainTable["mitigations"].apply(len) == 0) & (mainTable["convType"].isin(["gcn", "sage", "gat"]))
+    ][depthSweepCols].sort_values(["convType", "numLayers", "seed"])
+    ExportTable(depthSweepFull, os.path.join(TABLES_DIR, "depth_sweep_per_seed.md"), "md")
+    ExportTable(depthSweepFull, os.path.join(TABLES_DIR, "depth_sweep_per_seed.tex"), "tex")
+
+    # matches metrics.oversmoothing._MIN_ENERGY_FOR_LOG, the floor FitContractionSlope applies
+    energyFloor = 1e-12
+    perLayerRows = []
+    for seed in range(10):
+        record = _LoadRecordById("results", f"gcn_none_d32_s{seed}")
+        bandIndices = record["bandIndices"]
+        energies = record["checkpointMetrics"]["dirichletEnergy"]
+        for layer in bandIndices:
+            energy = energies[layer]
+            perLayerRows.append(
+                {
+                    "seed": seed,
+                    "layer": layer,
+                    "dirichletEnergy": energy,
+                    "belowFloor": energy < energyFloor,
+                }
+            )
+    perLayerTable = pd.DataFrame(perLayerRows)
+    # scientific notation: dirichletEnergy spans ~30 orders of magnitude in
+    # this table (Section 6.5), so a fixed decimal count would round every
+    # collapsed layer to "0.0000" and erase the thing the table shows
+    ExportTable(
+        perLayerTable, os.path.join(TABLES_DIR, "depth32_gcn_per_layer_energy.md"), "md", floatFormat=".2e"
+    )
+    ExportTable(
+        perLayerTable, os.path.join(TABLES_DIR, "depth32_gcn_per_layer_energy.tex"), "tex", floatFormat=".2e"
+    )
+
+    print("wrote hpsearch_per_seed, depth_sweep_per_seed, depth32_gcn_per_layer_energy (md + tex)")
+
+    belowFloorRows = []
+    for seed, group in perLayerTable.groupby("seed"):
+        atOrAboveFloor = group.loc[~group["belowFloor"], "layer"]
+        energyAtLayer1 = group.loc[group["layer"] == 1, "dirichletEnergy"].iloc[0]
+        belowFloorRows.append(
+            {
+                "seed": seed,
+                "below-floor layers (of 31)": int(group["belowFloor"].sum()),
+                "first layer at or above floor": int(atOrAboveFloor.min()),
+                "E_1": energyAtLayer1,
+            }
+        )
+    belowFloorSummary = pd.DataFrame(belowFloorRows).sort_values("seed")
+    ExportTable(
+        belowFloorSummary, os.path.join(TABLES_DIR, "depth32_gcn_below_floor_summary.md"), "md", floatFormat=".1e"
+    )
+    ExportTable(
+        belowFloorSummary, os.path.join(TABLES_DIR, "depth32_gcn_below_floor_summary.tex"), "tex", floatFormat=".1e"
+    )
+    print("wrote depth32_gcn_below_floor_summary (md + tex)")
     print("\n=== done ===")
 
 

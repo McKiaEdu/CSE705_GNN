@@ -6,6 +6,8 @@
 
 !.gitignore
 !README.md
+!README.txt
+!CSE705_GNN_ARAK_WU1261_code.zip
 !requirements.txt
 !requirements-dev.txt
 !pytest.ini
