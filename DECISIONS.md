@@ -1599,3 +1599,70 @@ configuration — published architecture hyperparameters, this study's shared
 training hyperparameters — not a full reproduction of their setup. Stated
 here so `alpha`/`theta`'s citation to Chen et al. does not imply the whole
 configuration matches theirs.
+
+## D-043 — report: Section 4 gains schematics only, never plotted results
+
+**Date:** 2026-07-30
+**Component:** report / viz
+**Status:** settled, after one reversal within the same session (see *Rejected
+alternatives*).
+
+**Decision.** Section 4 (Implementation Details) gains two hand-drawn TikZ
+schematics, in the style of the Section 2-3 architecture diagrams, and no
+plotted data:
+
+1. **Layer pipeline and tap point** (§4.3.4). One layer's interior (conv,
+   hooks in their fixed order, activation, tap, dropout), with the three
+   rejected tap positions marked and the reason each was rejected.
+2. **Capture ordering** (§4.4.4). The three metric captures placed on the
+   sequence of one run, showing that the final-epoch capture precedes the
+   best-`state_dict` restore.
+
+**Why schematics only.** Section 4 states what was built and why. A figure
+earns a place there when it replaces a *sequence* that prose carries badly:
+the tap point is an ordering argued over roughly 400 words, and the capture
+protocol is an ordering whose load-bearing detail (final captured before the
+restore) is near-invisible in prose. Neither needs measured data to make its
+point. Section 6 owns every claim about how the architectures behave, and
+keeping plotted results out of Section 4 keeps that boundary legible to a
+reader who reaches Section 6 expecting the findings to start there.
+
+**Rejected alternatives.**
+
+- *A plotted capture-points figure* drawn from `gcn_none_d2_s0`'s recorded
+  `trainingCurve`, with the checkpoint at epoch 422 and the final capture at
+  522. Built and rendered, then replaced by the schematic above: the figure
+  argues an ordering, and the ordering is fully carried by a diagram, so the
+  real curve added verisimilitude without adding an argument. It also put two
+  measured values (the two epoch numbers) into Section 4 that were not
+  otherwise there.
+- *A plotted energy-floor figure* drawn from `gcn_none_d32_s0`, showing the
+  floored and unfloored least-squares fits over the comparable band. Built,
+  rendered, and then dropped rather than redrawn as a schematic: its entire
+  value was making real magnitudes visible, which a schematic cannot do
+  honestly, and §4.5.5's prose already states those magnitudes (`-0.7579`
+  against `-0.8508` at epoch 0; `+0.8622` against `+1.1435` at the
+  checkpoint). Its rising curve also made a §6.4 finding visible inside a
+  methodology section. If it is ever wanted, its home is Section 6, beside
+  the threats-to-validity bullet that already cites the same numbers.
+- *Generating the schematics through `viz`.* Rejected: `viz`'s contract is
+  plotting recorded results, and these are hand-positioned drawings with no
+  underlying data. `preamble.tex` already carries the TikZ libraries.
+
+**Consequence for `viz`.** The two plotting functions written for the
+rejected alternatives (`PlotCapturePoints`, `PlotEnergyFloor`) and their
+aggregation helpers (`FitLogEnergySlope`, `EnergyFloorDiagnostics`) were
+removed rather than left in place. `FitLogEnergySlope` duplicated
+`metrics.FitContractionSlope`, a duplication justified only by the figure that
+consumed it; with no consumer, the justification is gone and unused code in a
+shared module is a liability. `viz` is therefore unchanged by this entry, and
+Yiheng's side needs no update.
+
+**Known cost.** §4.5.5 still states four measured slope values in prose, so
+Section 4 is not literally free of results; this entry does not change that
+paragraph. The boundary being kept here is the weaker one: Section 4 may
+quantify its own instruments in prose, but shows no plotted data.
+
+**Open question.** Whether §4.5.5's numbers and the §6 threats-to-validity
+bullet that repeats them should collapse to one authoritative statement with a
+cross-reference. Raised, not settled.
