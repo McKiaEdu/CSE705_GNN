@@ -1,9 +1,14 @@
-% Packages for the two hand-drawn UML diagrams in the Appendix (class
-% diagram, sequence diagram): plain TikZ, not a UML-specific package, since
-% pgf-umlcd/pgf-umlsd fail to render class-title text under this document's
-% LuaLaTeX engine (tested; works fine under pdflatex, not worth switching
-% engines this late over two figures). pdflscape rotates the wide class
-% diagram's own page to landscape without affecting the rest of the report.
+% Packages for this report's hand-drawn TikZ figures: the two UML diagrams
+% in the Appendix (class diagram, sequence diagram) and the architecture
+% schematics replacing Section 2-3 figure placeholders. Plain TikZ, not a
+% UML-specific package, since pgf-umlcd/pgf-umlsd fail to render class-title
+% text under this document's LuaLaTeX engine (tested; works fine under
+% pdflatex, not worth switching engines this late over a handful of
+% figures). pdflscape rotates the wide class diagram's own page to
+% landscape without affecting the rest of the report. calc enables the
+% coordinate-offset arithmetic the schematic diagrams use for connector
+% arrows that must land on a specific point along a box's edge, not just at
+% a named anchor.
 \usepackage{tikz}
-\usetikzlibrary{arrows.meta,positioning,shapes.multipart,fit,backgrounds}
+\usetikzlibrary{arrows.meta,positioning,shapes.multipart,fit,backgrounds,calc}
 \usepackage{pdflscape}
