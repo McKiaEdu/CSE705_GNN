@@ -1,17 +1,15 @@
-"""One-run smoke test: does the pipeline execute and reproduce a known result?
+"""One-run check that the pipeline executes and reproduces a known result.
 
 The full sweep is 534 runs and hours of compute. This runs exactly one of them,
 the depth-2 GCN at seed 0, end to end through the same modules the sweep uses,
-and checks the accuracy against the record shipped in results/. It answers the
-question a reader has before committing to the grid: does this code run, and
-does it produce the number the report claims.
+and compares its test accuracy against the record shipped in results/.
 
-Not a substitute for the test suite (`pytest`), which checks properties this
-cannot: metric correctness, seeding, schema shape, collapse behavior at depth.
+Not a substitute for the test suite (`pytest`), which checks what this cannot:
+metric correctness, seeding, schema shape, and collapse behavior at depth.
 
 Nothing is written by default. `RunOne` is pure: it builds, trains, and returns
-a record, while every write lives in `RunSweep`, which this does not call. The
-shipped `results/` cannot be touched by running this, which matters because arm
+a record, while every write lives in `RunSweep`, which this does not call. So
+running this cannot touch the shipped `results/`, which matters because arm
 collisions silently overwriting result files were a real defect in this project
 (D-030). Passing --save writes the record to its own subdirectory instead,
 following the same convention that isolates results/fidelity and

@@ -28,3 +28,8 @@
 # recursively, so these need an explicit re-exclusion
 __pycache__/
 *.pyc
+
+# Microsoft Office lock files, written next to a document while it is open and
+# left behind if the app is killed; report/ is re-included wholesale above, so
+# these need excluding again after it
+~$*
