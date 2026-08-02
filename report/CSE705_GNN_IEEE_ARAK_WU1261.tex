@@ -309,8 +309,9 @@ an untrained one.
   augmented Laplacian's degree-weighted null space, so its energy cannot
   vanish however completely its directions align.
 \item
-  \textbf{An ablation of four mitigations} at depth 32 showing that the
-  most effective one is architecture-dependent rather than universal.
+  \textbf{An ablation of three mitigations and their combination} at
+  depth 32, showing that the most effective one is
+  architecture-dependent rather than universal.
 \end{itemize}
 
 The study is confined to Cora and its standard public split, so the
@@ -480,7 +481,7 @@ rescales rows,
 h_i^{\mathrm{PN}}=s\,\frac{\widetilde{h}_i}{\lVert\widetilde{h}_i\rVert_2+\varepsilon},
 \]
 
-the scale-individual variant (PN-SI). Jumping Knowledge
+the scale-individual variant (PN-SI). Jumping Knowledge (JK)
 \citep{xu2018representation} changes the readout, pooling across depths
 elementwise,
 
@@ -548,25 +549,21 @@ capture isolates the architecture from the optimizer, and the
 epoch-0-to-checkpoint comparison is what distinguishes a model that
 trained and collapsed from one that never trained.
 
-{[}Insert Figure 1 here: schematic of one run's timeline showing the
-three capture points, with the final-epoch capture placed before the
-checkpoint restore. Drop if page budget is tight.{]}
-
 \subsection{Training Protocol and Experiment
 Grid}\label{training-protocol-and-experiment-grid}
 
-All runs use Adam with learning rate \(0.01\), dropout \(0.5\), and
-weight decay \(5\times10^{-4}\), the configuration selected once by a
-depth-2 GCN search and then frozen across every architecture and depth,
-so that the depth effect is not confounded with a hyperparameter effect.
-Weight decay is applied uniformly across layers rather than to the first
-layer only, so regularization strength does not become an implicit
-function of depth. Early stopping and checkpoint selection are both
-driven by validation loss, with patience 100 and a ceiling of 1,000
-epochs. Patience is held constant across depth: at a short window, a
-32-layer run whose loss plateaus early halts near epoch 12, leaving a
-flat curve that a slow optimization and an untrainable architecture
-would share.
+All runs use Adam \citep{kingma2015adam} with learning rate \(0.01\),
+dropout \(0.5\), and weight decay \(5\times10^{-4}\), the configuration
+selected once by a depth-2 GCN search and then frozen across every
+architecture and depth, so that the depth effect is not confounded with
+a hyperparameter effect. Weight decay is applied uniformly across layers
+rather than to the first layer only, so regularization strength does not
+become an implicit function of depth. Early stopping and checkpoint
+selection are both driven by validation loss, with patience 100 and a
+ceiling of 1,000 epochs. Patience is held constant across depth: at a
+short window, a 32-layer run whose loss plateaus early halts near epoch
+12, leaving a flat curve that a slow optimization and an untrainable
+architecture would share.
 
 The sweep is organized as six arms totaling 534 runs: an unmitigated
 sweep over GCN, GraphSAGE, and GAT (150 runs); a mitigation ablation on
@@ -773,10 +770,10 @@ early-layer collapse remains consistent with the measurements rather
 than established by them. Adding that instrumentation is the most direct
 next step. Two experiments would isolate why GraphSAGE collapses onto
 the constant direction at one hop: a degree-normalized-mean variant and
-a Glorot-initialized \texttt{SAGEConv}, run separately. Extending the
-protocol to graphs with other degree distributions would show whether
-the null-space result is Cora-specific. The protocol, rather than the
-numbers, is what is expected to transfer.
+a Glorot-initialized \citep{glorot2010understanding} \texttt{SAGEConv},
+run separately. Extending the protocol to graphs with other degree
+distributions would show whether the null-space result is Cora-specific.
+The protocol, rather than the numbers, is what is expected to transfer.
 
 
 \bibliography{references.bib}
