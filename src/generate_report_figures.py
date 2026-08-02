@@ -30,6 +30,7 @@ from viz import (
     PlotEnergyVsLayer,
     PlotLossCurves,
     PlotMadVsDepth,
+    PlotArmDDepthCurve,
     PlotMitigationAblation,
 )
 
@@ -179,7 +180,9 @@ def main() -> None:
     PlotAccuracyVsDepth(mainTable, os.path.join(FIGURES_DIR, "accuracy_vs_depth.pdf"))
     PlotMadVsDepth(mainTable, os.path.join(FIGURES_DIR, "mad_vs_depth.pdf"))
     PlotMitigationAblation(mainTable, os.path.join(FIGURES_DIR, "mitigation_ablation.pdf"))
-    print("wrote accuracy_vs_depth.pdf, mad_vs_depth.pdf, mitigation_ablation.pdf")
+    PlotArmDDepthCurve(mainTable, os.path.join(FIGURES_DIR, "armd_depth_curve.pdf"))
+    print("wrote accuracy_vs_depth.pdf, mad_vs_depth.pdf, mitigation_ablation.pdf,")
+    print("      armd_depth_curve.pdf")
 
     energyRecords = [
         _LoadRecordById("results", f"{convType}_none_d32_s0") for convType in ("gcn", "sage", "gat")

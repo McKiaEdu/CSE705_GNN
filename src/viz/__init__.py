@@ -6,6 +6,7 @@ from .figures import (
     PlotEnergyVsLayer,
     PlotLossCurves,
     PlotMadVsDepth,
+    PlotArmDDepthCurve,
     PlotMitigationAblation,
 )
 from .tables import ExportTable
@@ -19,6 +20,7 @@ __all__ = [
     "PlotAccuracyVsDepth",
     "PlotEnergyVsLayer",
     "PlotMadVsDepth",
+    "PlotArmDDepthCurve",
     "PlotMitigationAblation",
     "PlotLossCurves",
     "PlotEnergyShift",

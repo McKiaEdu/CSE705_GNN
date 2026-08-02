@@ -4,18 +4,20 @@
 % deferred to \AtBeginDocument because the template's own \author{} is written
 % after this file is included and would otherwise win.
 \AtBeginDocument{%
+% conference mode locks out \thanks, silently dropping the footnote, so the
+% lockout is overridden before \author is defined
+\IEEEoverridecommandlockouts
+% two parallel blocks rather than one inline pair, so each email sits under its
+% own author's name instead of relying on the two columns happening to align
 \author{%
 \IEEEauthorblockN{Kiarash Ara}
-\IEEEauthorblockA{Dept. of Computing and Software\\
-McMaster University\\
-Hamilton, Ontario, Canada\\
-arak@mcmaster.ca}
+\IEEEauthorblockA{arak@mcmaster.ca}
 \and
 \IEEEauthorblockN{Yiheng Wu}
-\IEEEauthorblockA{Dept. of Computing and Software\\
-McMaster University\\
-Hamilton, Ontario, Canada\\
-wu1261@mcmaster.ca}
+\IEEEauthorblockA{wu1261@mcmaster.ca}%
+\thanks{Both authors are with the School of Computational Science and
+Engineering, McMaster University. Course project for CSE 705 Deep Learning,
+Summer 2026; instructor Dr.~Anwar Mirza.}%
 }%
 }
 

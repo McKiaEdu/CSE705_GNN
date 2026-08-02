@@ -123,6 +123,52 @@ def PlotMadVsDepth(table: pd.DataFrame, outputPath: str, capture: str = "checkpo
     _SaveFigure(fig, outputPath)
 
 
+def PlotArmDDepthCurve(table: pd.DataFrame, outputPath: str) -> None:
+    """Arm D: Jumping Knowledge on all three architectures against depth.
+
+    Separate from PlotMitigationAblation, which varies the mitigation on GCN
+    alone. This holds the mitigation fixed and varies the architecture, which
+    is what shows the transfer result: two curves hold with depth and one does
+    not. The majority-class floor is drawn because GraphSAGE+JK's depth-32
+    value is only meaningful relative to it.
+    """
+    fig, ax = _NewFigure()
+    for convType in ARCHITECTURE_ORDER:
+        mitigated = table[
+            (table["convType"] == convType) & (table["mitigations"].apply(lambda m: tuple(m) == ("jk",)))
+        ]
+        agg = Aggregate(mitigated, ["numLayers"]).sort_values("numLayers")
+        ax.errorbar(
+            agg["numLayers"],
+            agg["testAccuracy_mean"],
+            yerr=agg["testAccuracy_std"],
+            label=f"{convType} + jk",
+            color=ARCHITECTURE_COLORS[convType],
+            marker=ARCHITECTURE_MARKERS[convType],
+            linestyle=ARCHITECTURE_LINESTYLES[convType],
+            markersize=4,
+            linewidth=1.2,
+            capsize=2,
+        )
+    # majority-class floor from the test-split label counts (Section 3)
+    ax.axhline(0.319, color="0.45", linestyle=(0, (1, 2)), linewidth=1.0)
+    # right-aligned at the last depth: the lower-left corner holds the legend
+    ax.annotate(
+        "majority-class floor",
+        xy=(32, 0.319),
+        xytext=(-2, 4),
+        textcoords="offset points",
+        ha="right",
+        fontsize=MIN_FONT_SIZE - 1,
+        color="0.35",
+    )
+    ax.set_xscale("log", base=2)
+    ax.set_xlabel("depth (layers)")
+    ax.set_ylabel("test accuracy")
+    ax.legend(fontsize=MIN_FONT_SIZE, loc="lower left")
+    _SaveFigure(fig, outputPath)
+
+
 def PlotMitigationAblation(table: pd.DataFrame, outputPath: str) -> None:
     """Arm B (4 mitigation combos) plus arm C (GCNII): test accuracy vs depth,
     one series per mitigation, 5 total. Whether this should split across
