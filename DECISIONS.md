@@ -872,9 +872,16 @@ test plan asserts the two differ whenever `bestEpoch != epochsRun`.
 **Status:** settled
 
 **Decision.** Macro-F1 is implemented as a vectorized torch function inside `train`.
-`scikit-learn` is not a runtime dependency and does not appear in `requirements.txt`; it
-appears in `requirements-dev.txt` and is used in exactly one test, which compares the
-in-repo value against sklearn's on fixed input.
+`scikit-learn` is not a runtime dependency **of the numerical modules**, and it is used
+in exactly one test, which compares the in-repo value against sklearn's on fixed input.
+
+**Corrected 2026-08-02.** This paragraph previously read "`scikit-learn` … does not
+appear in `requirements.txt`; it appears in `requirements-dev.txt`." Both halves were
+false against the files, and the entry's own *Note — scope* below contradicted them:
+`viz` imports `sklearn.manifold.TSNE` at runtime, so `requirements.txt` has always
+listed scikit-learn and `requirements-dev.txt` never did. The claim that survives is the
+scoped one, that no module producing a reported number depends on scikit-learn. See
+D-058 for the file merge that removed the second file entirely.
 
 **Why.** The course grades how much of the code the team wrote versus took from prior
 work. Macro-F1 over seven classes is roughly ten lines of tensor operations — per-class
@@ -1937,9 +1944,9 @@ that says "VERIFY" is a hard gate, not a suggestion; entry C-115's fifth verify
 item ("whether any recorded energy is exactly 0.0 — this one could change the
 prose") is the case that proves the gate earns its cost.
 
-**Open question.** Nothing systematically re-checks the report's numbers against
-the records. A test that parses §6's tables and asserts each against a fresh
-aggregation would close this, and does not exist.
+**Open question — closed 2026-08-02 by D-056.** Nothing systematically
+re-checked the report's numbers against the records; `report/check_numbers.py`
+now does, for both the full report and the IEEE paper.
 
 
 ## D-050 — report: Sections 6 and 7's final shape, and where the dissolved subsections went
@@ -1993,8 +2000,8 @@ deviations, since after the cut most surviving bullets are not deviations.
 **Consequence.** Two figures (`fig-energy-vs-layer`, `fig-energy-shift`) were
 referenced from nowhere in the report and sat above the prose introducing them.
 Both moved below their own paragraph and gained a reference. Two others
-(`fig-mitigation-ablation`, `fig-loss-curves`) are still unreferenced from prose
-and were outside this pass.
+(`fig-mitigation-ablation`, `fig-loss-curves`) were still unreferenced after this
+pass and were picked up later, together with fourteen more, under D-053.
 
 
 ## D-051 — report: a retitled Section 7 subsection keeps its `{#sec-}` label
@@ -2025,3 +2032,318 @@ after every editing pass.
 **Assumption.** Labels are internal identifiers with no reader-facing meaning.
 True under Quarto, where cross-references render as "Section 6.4" from the
 numbering, never from the label text.
+
+
+## D-052 — report: one appendix, holding the two system diagrams; the raw-data appendices are deleted
+
+**Date:** 2026-08-02
+**Component:** report
+**Status:** settled
+
+**Decision.** The report carries a single unlettered "Appendix: System Diagrams",
+holding the class diagram and the sequence diagram. The three raw-data appendices
+are deleted: the full hyperparameter search grid (26 rows), the depth-sweep
+per-seed accuracies (152 rows), and the depth-32 per-layer checkpoint energies
+(312 rows). That is roughly 5,040 of the appendix's 6,014 words; what survives
+renders at 449.
+
+**Why.** Each deleted appendix printed the per-seed data behind an aggregate the
+main text already reports, and `tbl-hpsearch`, `tbl-accuracy-depth` and
+`tbl-per-seed-collapse` are those aggregates. Printing 490 table rows does not
+make the study more reproducible than `results/*.json` does — the 534 records are
+in the repository, and `README.txt` documents `python src/generate_report_figures.py`
+as the command that rebuilds every figure and table from them. A reader who wants
+a per-seed number is better served by the records than by a page of rows they
+cannot compute with.
+
+**Alternatives rejected.** *Keeping them for the reproducibility grading factor* —
+this inverts what that factor asks. It rewards code that reproduces the report's
+results from the README, which is exactly what the records plus the generator
+provide; a printed dump is a transcription of that output, not a second source.
+*Keeping the hyperparameter grid alone* — `tbl-hpsearch` in Two-Layer Baselines
+already shows all eight configurations with their means and standard deviations,
+which is the whole of what the search decided.
+
+**Consequence, and the trap.** The ledger proposing this recorded that the three
+appendix table labels were unreferenced, so deleting them broke nothing. That was
+true when it was written and false by the time it was applied: the label-coverage
+pass (D-053) had since added a reference to each, and Appendix D's opening also
+referenced `tbl-per-seed-collapse`, a main-text table. Deleting the appendix
+orphaned that label. The references *into* the deleted appendices vanished with
+them harmlessly; the one reference *out* of a deleted appendix into the main text
+did not. It was reattached in §6.4.
+
+**Rule this produces.** Before deleting a section, check what it references
+outward, not only what references it inward. A deletion that is safe on inbound
+links can still orphan a label elsewhere.
+
+**Side effect.** The body twice cites Kipf and Welling's own Appendix B
+[@kipf2017semi]. Both mentions name the authors explicitly, so dropping the letter
+from our own appendix removes a collision rather than creating one.
+
+
+## D-053 — report: every labelled table and figure is referenced from prose, at the point the prose discusses it
+
+**Date:** 2026-08-02
+**Component:** report
+**Status:** settled
+
+**Decision.** A `{#tbl-}` or `{#fig-}` label exists only where a sentence points
+at it. The reference goes into a sentence that already carries content, at the
+point where the surrounding prose first discusses what the float shows — never as
+a standalone lead-in whose only job is to announce the float. Where no such
+sentence exists and one would be filler, the label is dropped instead.
+
+**Why.** A labelled float that no sentence points to floats freely in the PDF with
+nothing tying it to its text, and LaTeX will place it wherever it fits. Sixteen
+labels were in that state, including two figures sitting inside the sections whose
+argument depends on them (`fig-loss-curves` in Oversmoothing Against Optimization
+Failure, `fig-mitigation-ablation` in Mitigation Ablation). All sixteen were given
+references and none had to be dropped.
+
+**Why the "no lead-in" clause.** The §4 and §6/§7 passes cut lead-in sentences of
+exactly the form "@tbl-x lists the quantities this study did not measure" as
+content-free announcements. Restoring references must not reintroduce them one
+table at a time. In two cases the prose already contained the reference in words
+("in this table", "the Appendix's class diagram"), and naming the float was
+strictly an improvement on what was there.
+
+**What it caught.** Writing a reference forces a claim about what the float shows,
+and one of those claims was wrong. The first draft of the `fig-mitigation-ablation`
+sentence said the figure showed the mitigations holding their ordering against the
+unmitigated baseline. `PlotMitigationAblation` plots the four mitigations plus
+GCNII and **not** the baseline, so the sentence described a curve that is not in
+the figure. Rewritten against what it does plot, checked against the arm B means.
+
+**Rule this produces.** When adding a reference, read the figure or the code that
+generates it before describing what it shows. The reference is a claim, and it is
+subject to D-049.
+
+**Open question.** `fig-loss-curves` plots seed 0 while the sentence referencing it
+says "across all 10 seeds," and it also plots GCN+JK, which no prose in that
+section discusses. Both are pre-existing and neither was in scope.
+
+
+## D-054 — process: Yiheng's copy is a fork of an old baseline; only §1–§3 additions are merged
+
+**Date:** 2026-08-02
+**Component:** report / collaboration
+**Status:** settled
+
+**Decision.** Yiheng's version of the notebook is not merged wholesale. Two
+additions are taken from its §1–§3, and everything else is discarded. This is a
+statement about one fork at one time, not about his contributions generally.
+
+**Why.** His copy is forked from a baseline predating the §4–§7 editing rounds:
+3 of 29 cells match, and his §4 is 4,553 words, exactly its length before any
+edits, against 3,141 now. His §4–§7 still contain every construction those rounds
+removed — "an earlier pass at this analysis", "An earlier draft of this analysis",
+"rises monotonically with depth" (false, corrected in F-004), "answered by
+construction" — and still carry the dissolved subsections (Reporting Conventions,
+Deviations, Visualization and Aggregation, The Six Arms). Merging §4–§7 would
+revert the entire ledger, including three corrected factual errors. His §3 also
+predates the `{#sec-}` labels, so it cannot be taken as a unit either.
+
+**What was taken.** The scale-invariance argument now closing §3's Mean Average
+Distance subsection (D-055 records the verification), and one hop-counting
+sentence in §1.
+
+**What was left, and why it is not a judgment on it.** His §1 and §2 cuts remove
+roughly 1,460 words. They may well be good cuts. They are against an old baseline,
+and §1 and §2 are the two sections nobody has reviewed in any pass. Shortening
+them is a review, not a merge, and doing it by taking his diff would silently
+adopt an old base text. His §2 retitle is defensible; there is no reason to churn
+the label.
+
+**Assumption, flagged.** The division of labor that made this recoverable was that
+he worked on §1–§3 while the ledger rounds worked on §4–§7. That split held by
+accident here. Nothing enforces it.
+
+**Open question.** §1 and §2 have never been reviewed, and his willingness to cut
+1,460 words from them suggests he found them long. He may be right.
+
+
+## D-055 — report: an algebraic claim lifted from a collaborator is verified against the code before it ships
+
+**Date:** 2026-08-02
+**Component:** report / metrics
+**Status:** settled; both identities checked.
+
+**Decision.** §3's Mean Average Distance subsection closes with the algebraic
+reason MAD and Dirichlet energy are complementary: MAD is invariant to positive
+per-node rescaling, $\operatorname{MAD}(SH)=\operatorname{MAD}(H)$ for
+$S=\operatorname{diag}(s_1,\ldots,s_N)$ with $s_i>0$, while Dirichlet energy is
+quadratic, $E_{\mathrm{dim}}(cH)=c^2E_{\mathrm{dim}}(H)$. It replaces a
+qualitative sentence that stated the distinction without showing why it holds.
+
+**Why it matters more than its length.** The GraphSAGE dissociation finding rests
+entirely on this distinction: MAD near zero while the energy ratio plateaus at
+19–20, because GraphSAGE collapses onto the constant direction, which is outside
+the augmented Laplacian's degree-weighted null space. §3 previously asserted the
+distinction and §6 relied on it. The reason now appears before the result, which
+is the right order.
+
+**How it was checked.** Not by inspection. Both identities were run against
+`src/metrics/oversmoothing.py`, the code that produced every reported number.
+`MeanAverageDistance(S @ H)` matched `MeanAverageDistance(H)` to 0.000e+00 over
+three random positive per-node scalings on Cora's real graph.
+`DirichletEnergy(cH)` matched `c^2 * DirichletEnergy(H)` to float32 (relative
+error 8.4e-08 at c=10). A counter-check confirmed the asymmetry the paragraph
+depends on: a per-node scaling leaves MAD fixed but moves energy by more than an
+order of magnitude (1.97e3 to 6.38e4).
+
+**Why the counter-check was necessary.** Without it, "energy retains magnitude"
+is a restatement of "energy is not scale-invariant" rather than a separate fact.
+The numbers show the two metrics genuinely come apart under the same
+transformation, which is what makes their disagreement in §6 informative rather
+than a contradiction to explain away.
+
+**Rule this produces.** Text arriving from a collaborator is subject to D-049 like
+any other draft. Elementary algebra is not exempt: it is a claim in the report,
+and the report's claims are checked against the code that generated its numbers.
+
+
+## D-056 — report: every stated figure is re-derived from the records by `report/check_numbers.py`, not checked by reading
+
+**Date:** 2026-08-02
+**Component:** report / results
+**Status:** settled; closes D-049's open question.
+
+**Decision.** `report/check_numbers.py` holds a claims table in which each
+headline figure is recomputed from `results/*.json` and paired with the text
+that states it. Running it reports any claim the records support that a
+document no longer carries. It covers both the full report and the IEEE paper,
+and it is the counterpart to `decisions/applied/a67.py`: that script verifies
+anchor *text* survives an edit, this one verifies quantitative *claims* still
+match the records. 56 claims, both documents currently clean.
+
+**Why.** D-049 established that §6's numbers must be re-derived from the records
+rather than trusted from a ledger, and recorded that nothing enforced it. The
+enforcement gap is the expensive one: the sweep can be re-run at any time, and
+a changed result silently invalidates every sentence quoting it across two
+documents. Reading for that is not a check, it is a hope.
+
+**What the design has to get right.** The same quantity is written as `1.64`,
+`1.640`, or `-1.30e-2` depending on which table it sits in. An exact-decimal
+match reports typesetting differences as if they were stale numbers, so each
+claim matches a set of plausible renderings. The check stays sensitive to the
+thing that matters, a value that moved, without firing on formatting.
+
+**A false pass found in testing, and fixed.** The first version scoped claims by
+literal document path, so any unrecognized file matched no claims, reported
+`0/0 claims found`, and exited 0. A checker that silently passes on a file it
+does not understand is worse than no checker, because it converts an unchecked
+document into an apparently checked one. An unresolved path is now an error
+that names the `--as=full` / `--as=ieee` override. Verified by planting two
+wrong numbers in a copy of the paper; both were caught.
+
+**Alternatives rejected.** *Scanning for every number in the document and
+matching it against anything the records produce* — page numbers, years,
+citation markers, and hyperparameters are all numbers, so the false-positive
+rate would make the check ignorable, which is the failure mode a check must not
+have. *Asserting inside the test suite* — the tests cover the code, and a
+report claim is not a property of the code; it is a property of a document,
+which can drift while every test passes.
+
+**Maintenance.** A claim's `docs` field lists only the documents that actually
+state it, because the IEEE paper carries a deliberate subset and requiring the
+full set would produce false failures. Two claims are scoped narrower than the
+rest and are commented in place: GCN's depth-16 checkpoint slope is recomputed
+but not claimed, since §6.6 quotes depths 4, 8 and 32 only; and GraphSAGE's deep
+epoch-0 MAD is claimed only in the full report, since the IEEE table compresses
+it to "approximately 0". **Adding or removing a number from either document
+requires updating `BuildClaims()`,** or the check quietly stops covering it.
+
+
+## D-057 — process: the IEEE paper is edited in place, and the conversion knowledge lives in a skill
+
+**Date:** 2026-08-02
+**Component:** report / process
+**Status:** settled
+
+**Decision.** `report/CSE705_GNN_IEEE_ARAK_WU1261.ipynb` is the source of truth
+for the IEEE article and is edited surgically, the same way the section ledgers
+were applied to the main report. It is not regenerated from a template. The
+process knowledge for updating it lives in `.claude/skills/ieee-paper/`,
+project-level rather than global so it is checked in and available to both
+authors.
+
+**Why not regenerate.** The paper was scaffolded from a builder script that
+assembled front matter and section strings, which was the right tool for
+producing five sections quickly. It stopped being the right tool the moment the
+content was tuned: the paper now carries trimmed prose, raw-LaTeX tables, and
+the budget decisions taken when the page limit bound. Regenerating would discard
+all of it. The builder was scaffolding and is deliberately not kept as a live
+path.
+
+**What the skill carries, and why it is worth a file.** Almost everything that
+cost time in the conversion is invisible from the output and would be
+rediscovered by trial and error: `IEEEtran` is absent from TinyTeX by default;
+pandoc's natbib default is author-year while `IEEEtran.bst` is numeric-only;
+Quarto escapes `&`, so `sort&compress` cannot be passed; pandoc emits
+`\author{}` *after* `include-in-header` and silently blanks the IEEE author
+block; markdown tables become `longtable` and error in two-column mode; `~` is
+subscript syntax in pandoc markdown, so `Table~\ref{}` renders a literal tilde.
+Each of these produced either a failed render or a silently wrong document.
+
+**The budget arithmetic is the other half.** Measured on this document: 713 body
+words per page, 13 references at roughly 1.3 pages, a single-column figure at
+0.35. Two rules follow. Predict the page count before drafting rather than
+discovering it afterward, which cost a full pass here. And partial trims buy
+nothing, because pages are integral: 5.6 prints as 6, so either a full page goes
+or nothing does. Two levers were tested and recorded as not working, so they are
+not tried again: suppressing bibliography URLs saves nothing measurable, and the
+figures are already at aspect 1.35.
+
+**Assumption, flagged.** The skill hardcodes the TinyTeX path
+`$HOME/.TinyTeX/bin/x86_64-linux`. It will need editing on a different
+architecture or a system TeX install.
+
+**Open question.** The paper stands at 6 pages against a 5-page target. The gap
+is one page, and closing it means cutting roughly 715 words from §IV rather than
+trimming evenly. That decision is not taken here.
+
+
+## D-058 — repo: one pinned `requirements.txt`; `requirements-dev.txt` is merged into it
+
+**Date:** 2026-08-02
+**Component:** repo
+**Status:** settled
+
+**Decision.** All dependencies live in a single pinned `requirements.txt`, grouped by
+comment into a runtime block and a testing/notebook block. `requirements-dev.txt` is
+deleted. The README's install section is one command.
+
+**Why, for this repo specifically.** Splitting runtime from tooling is a mainstream
+Python convention and was not a mistake. It stopped paying here for three reasons.
+The README already instructed installing both files, so the split saved nobody a step.
+The test suite and the report notebooks are part of the graded deliverable, and the
+README's reproduction path runs both, so `pytest`, `jupyter`, `nbclient`, `nbformat`
+and `ipykernel` are not optional developer tooling in this project, they are required
+to reproduce what the report claims. And grading factor 4 is whether the code
+reproduces the report's results from the README, where one install command is one
+fewer instruction to misread.
+
+**The defect that mattered more than the file count.** `requirements.txt` was fully
+pinned, 49 packages including transitive dependencies; `requirements-dev.txt` was five
+packages with **no versions at all**. Unpinned dependencies in a project graded on
+reproducibility is a real problem, and it was invisible while the two files were read
+as different kinds of thing. All five are now pinned to the environment the reported
+results were produced under.
+
+**What the comments preserve.** Merging two files into one loses the record of which
+dependency serves which purpose. A comment header on each block keeps that information
+without a second file, which is the whole benefit of the split at none of its cost.
+
+**Alternatives rejected.** *Keeping the split and pinning the dev file* — fixes the
+real defect but leaves a two-step install whose second step is easy to skip, in a
+submission judged on following the README. *A full `pip freeze` of the current
+environment into one file* — would add roughly forty JupyterLab transitive packages,
+tripling the file for no reproducibility gain, since the pins that determine reported
+numbers are torch, PyG, numpy and scikit-learn.
+
+**Consequence, not yet applied.** `specs/train_spec.md` states under Assumptions &
+constraints that scikit-learn "belongs in `requirements-dev.txt`, not
+`requirements.txt`, per D-021." That was already wrong before this change and is now
+doubly so. Specs are authored by Kiarash and are read-only to the assistant, so the
+bullet is flagged rather than edited and needs updating by hand.

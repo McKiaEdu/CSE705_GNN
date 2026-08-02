@@ -1,0 +1,26 @@
+% IEEE author blocks: pandoc's default template emits a plain \author{}, which
+% drops affiliation and email, so the block is defined here instead and the
+% `author` key is left out of the notebook front matter. The definition is
+% deferred to \AtBeginDocument because the template's own \author{} is written
+% after this file is included and would otherwise win.
+\AtBeginDocument{%
+\author{%
+\IEEEauthorblockN{Kiarash Ara}
+\IEEEauthorblockA{Dept. of Computing and Software\\
+McMaster University\\
+Hamilton, Ontario, Canada\\
+arak@mcmaster.ca}
+\and
+\IEEEauthorblockN{Yiheng Wu}
+\IEEEauthorblockA{Dept. of Computing and Software\\
+McMaster University\\
+Hamilton, Ontario, Canada\\
+wu1261@mcmaster.ca}
+}%
+}
+
+% IEEE body text runs with indented paragraphs and no inter-paragraph skip;
+% pandoc's default leaves a visible gap that costs vertical space in a
+% page-limited format
+\setlength{\parskip}{0pt}
+\setlength{\parindent}{1em}

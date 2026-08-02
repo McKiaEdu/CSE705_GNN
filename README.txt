@@ -16,12 +16,30 @@ Install dependencies:
 
     pip install -r requirements.txt
 
-For running the test suite, also install:
-
-    pip install -r requirements-dev.txt
+This is the only install step. It covers the test suite and the notebook
+kernel as well as the runtime, since reproducing the reported results involves
+both.
 
 All commands below are run from this directory (the repository root), not
 from inside `src/`.
+
+## Quick check: does the code run?
+
+Before committing to anything longer, one command runs a single configuration
+end to end and checks it against a known result:
+
+    python src/smoke_test.py
+
+This trains the depth-2 GCN at seed 0 through the same modules the full sweep
+uses, then compares its test accuracy against the shipped record for that run.
+It takes roughly 8 seconds on CPU and prints PASS or FAIL (exit status 0 or 1).
+Nothing is written: `results/` is left untouched, so this cannot disturb the
+shipped records. Pass `--save` to keep the record under `results/smoke/`, which
+is a separate directory the report's aggregation does not read.
+
+For the full test suite (120 tests, roughly two and a half minutes):
+
+    pytest
 
 ## Reproducing the report's results
 
@@ -69,14 +87,14 @@ To run the test suite:
     +-- experiments/    declarative grid, model construction, filesystem writes
     +-- viz/            aggregation, plotting, table export
     +-- tests/          pytest suite (one test module per package above)
+    +-- smoke_test.py           entry point: one run, verifies the pipeline in ~8s
     +-- run_sweep.py            entry point: runs the full 534-run sweep
     +-- generate_report_figures.py   entry point: rebuilds figures/ and tables/ from results/
 
     results/            one JSON record per run (results/, results/fidelity/,
                         results/hpsearch/), plus results/embeddings/*.pt for
                         the ten runs the embedding-projection figure uses
-    requirements.txt        runtime dependencies
-    requirements-dev.txt    testing dependencies (pytest, jupyter kernel)
+    requirements.txt        all dependencies, pinned (runtime, tests, notebooks)
     pytest.ini               points pytest at src/tests/
 
 Module responsibilities, in build/dependency order:
