@@ -36,11 +36,122 @@ from viz import (
 FIGURES_DIR = "figures"
 TABLES_DIR = "tables"
 
+# depth-2 Cora accuracies as published, entered from the papers rather than
+# recomputed, so Section 6.1 compares against a figure with a citation attached
+PUBLISHED_DEPTH2_ACCURACY: dict[str, dict[str, object]] = {
+    "gcn": {"published": 81.5, "publishedStd": None, "source": "kipf2017semi"},
+    "sage": {"published": None, "publishedStd": None, "source": "hamilton2017inductive"},
+    "gat": {"published": 83.0, "publishedStd": 0.7, "source": "velickovic2018graph"},
+}
+
+ARCHITECTURE_LABELS: dict[str, str] = {"gcn": "GCN", "sage": "GraphSAGE", "gat": "GAT"}
+
+SWEEP_DEPTHS: tuple[int, ...] = (2, 4, 8, 16, 32)
+
 
 def _LoadRecordById(directory: str, runId: str) -> dict:
     path = os.path.join(directory, f"{runId}.json")
     with open(path) as f:
         return json.load(f)
+
+
+def _UnmitigatedSubset(table: pd.DataFrame, convType: str) -> pd.DataFrame:
+    return table[(table["convType"] == convType) & (table["mitigations"].apply(len) == 0)]
+
+
+def _MitigatedSubset(table: pd.DataFrame, convType: str, mitigation: str) -> pd.DataFrame:
+    matchesMitigation = table["mitigations"].apply(lambda m: tuple(m) == (mitigation,))
+    return table[(table["convType"] == convType) & matchesMitigation]
+
+
+def BuildBaselineComparison(table: pd.DataFrame) -> pd.DataFrame:
+    """Depth-2 measured accuracy per architecture against its own paper's figure.
+
+    Arm A's depth-2 subset already holds every measured number, so this reads
+    the same records the rest of Section 6 does rather than requiring new runs.
+    The published column is a literal from PUBLISHED_DEPTH2_ACCURACY.
+    """
+    rows: list[dict[str, object]] = []
+    for convType, label in ARCHITECTURE_LABELS.items():
+        depth2 = _UnmitigatedSubset(table, convType)
+        depth2 = depth2[depth2["numLayers"] == 2]
+        measuredMean = 100.0 * depth2["testAccuracy"].mean()
+        measuredStd = 100.0 * depth2["testAccuracy"].std()
+        reference = PUBLISHED_DEPTH2_ACCURACY[convType]
+        publishedMean = reference["published"]
+        # GraphSAGE has no published Cora figure to compare against, so the
+        # difference column stays empty rather than being filled with a zero
+        difference = None if publishedMean is None else measuredMean - float(publishedMean)
+        rows.append(
+            {
+                "architecture": label,
+                "measured (%)": round(measuredMean, 2),
+                "std": round(measuredStd, 2),
+                "published (%)": publishedMean,
+                "published std": reference["publishedStd"],
+                "difference (pp)": None if difference is None else round(difference, 2),
+                "count": int(len(depth2)),
+            }
+        )
+    return pd.DataFrame(rows)
+
+
+def BuildArmDDepth32(table: pd.DataFrame) -> pd.DataFrame:
+    """Depth-32 unmitigated against +JK, per architecture.
+
+    GCN's mitigated row comes from arm B and GraphSAGE's and GAT's from arm D;
+    all three are the same `jk` mitigation, so they tabulate together.
+    """
+    rows: list[dict[str, object]] = []
+    for convType, label in ARCHITECTURE_LABELS.items():
+        unmitigated = _UnmitigatedSubset(table, convType)
+        unmitigated = unmitigated[unmitigated["numLayers"] == 32]
+        mitigated = _MitigatedSubset(table, convType, "jk")
+        mitigated = mitigated[mitigated["numLayers"] == 32]
+        unmitigatedMean = 100.0 * unmitigated["testAccuracy"].mean()
+        mitigatedMean = 100.0 * mitigated["testAccuracy"].mean()
+        rows.append(
+            {
+                "architecture": label,
+                "unmitigated (%)": round(unmitigatedMean, 2),
+                "unmitigated std": round(100.0 * unmitigated["testAccuracy"].std(), 2),
+                "+JK (%)": round(mitigatedMean, 2),
+                "+JK std": round(100.0 * mitigated["testAccuracy"].std(), 2),
+                "difference (pp)": round(mitigatedMean - unmitigatedMean, 2),
+                "unmitigated macro-F1": round(unmitigated["testMacroF1"].mean(), 4),
+                "+JK macro-F1": round(mitigated["testMacroF1"].mean(), 4),
+                "count": int(len(mitigated)),
+            }
+        )
+    return pd.DataFrame(rows)
+
+
+def BuildArmDDepthCurve(table: pd.DataFrame) -> pd.DataFrame:
+    """Test accuracy against depth for +JK and unmitigated, all three architectures.
+
+    Reports the whole sweep rather than depth 32 alone, since the finding is
+    that GraphSAGE+JK falls with depth where GCN+JK and GAT+JK hold.
+    """
+    rows: list[dict[str, object]] = []
+    for convType, label in ARCHITECTURE_LABELS.items():
+        for depth in SWEEP_DEPTHS:
+            unmitigated = _UnmitigatedSubset(table, convType)
+            unmitigated = unmitigated[unmitigated["numLayers"] == depth]
+            mitigated = _MitigatedSubset(table, convType, "jk")
+            mitigated = mitigated[mitigated["numLayers"] == depth]
+            rows.append(
+                {
+                    "architecture": label,
+                    "depth": depth,
+                    "unmitigated (%)": round(100.0 * unmitigated["testAccuracy"].mean(), 2),
+                    "unmitigated std": round(100.0 * unmitigated["testAccuracy"].std(), 2),
+                    "+JK (%)": round(100.0 * mitigated["testAccuracy"].mean(), 2),
+                    "+JK std": round(100.0 * mitigated["testAccuracy"].std(), 2),
+                    "+JK macro-F1": round(mitigated["testMacroF1"].mean(), 4),
+                    "count": int(len(mitigated)),
+                }
+            )
+    return pd.DataFrame(rows)
 
 
 def main() -> None:
@@ -136,6 +247,18 @@ def main() -> None:
     ExportTable(fidelityComparison, os.path.join(TABLES_DIR, "fidelity_comparison.md"), "md")
     ExportTable(fidelityComparison, os.path.join(TABLES_DIR, "fidelity_comparison.tex"), "tex")
 
+    baselineComparison = BuildBaselineComparison(mainTable)
+    ExportTable(baselineComparison, os.path.join(TABLES_DIR, "baseline_comparison.md"), "md")
+    ExportTable(baselineComparison, os.path.join(TABLES_DIR, "baseline_comparison.tex"), "tex")
+
+    armDDepth32 = BuildArmDDepth32(mainTable)
+    ExportTable(armDDepth32, os.path.join(TABLES_DIR, "armd_depth32.md"), "md")
+    ExportTable(armDDepth32, os.path.join(TABLES_DIR, "armd_depth32.tex"), "tex")
+
+    armDDepthCurve = BuildArmDDepthCurve(mainTable)
+    ExportTable(armDDepthCurve, os.path.join(TABLES_DIR, "armd_depth_curve.md"), "md")
+    ExportTable(armDDepthCurve, os.path.join(TABLES_DIR, "armd_depth_curve.tex"), "tex")
+
     hpsearchTable = BuildTable(LoadRecords("results/hpsearch"))
     hpsearchAgg = Aggregate(hpsearchTable, ["learningRate", "dropout", "weightDecay"]).sort_values(
         "valAccuracy_mean", ascending=False
@@ -145,7 +268,7 @@ def main() -> None:
     ExportTable(hpsearchAgg[hpsearchSummaryCols], os.path.join(TABLES_DIR, "hpsearch_summary.tex"), "tex")
 
     print("wrote accuracy_vs_depth, mitigation_ablation, contraction_slope, fidelity_comparison,")
-    print("      hpsearch_summary (md + tex)")
+    print("      baseline_comparison, armd_depth32, armd_depth_curve, hpsearch_summary (md + tex)")
 
     print("\n=== appendix tables ===")
     hpsearchCols = ["learningRate", "dropout", "weightDecay", "seed", "valAccuracy", "valLoss"]

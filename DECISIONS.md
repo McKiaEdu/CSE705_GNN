@@ -1666,3 +1666,362 @@ quantify its own instruments in prose, but shows no plotted data.
 **Open question.** Whether §4.5.5's numbers and the §6 threats-to-validity
 bullet that repeats them should collapse to one authoritative statement with a
 cross-reference. Raised, not settled.
+
+
+## D-044 — report: raw TikZ figures are cross-referenced with LaTeX `\label`/`\ref`, not Quarto `@fig-`
+
+**Date:** 2026-07-31
+**Component:** report
+**Status:** settled; verified against a rendered PDF rather than assumed.
+
+**Decision.** Every hand-drawn TikZ figure carries `\label{fig-...}` as the
+first token inside its `\caption{}`, matching the form Quarto itself emits
+(`\caption{\label{fig-x}...}`). Prose points at one using an inline raw-LaTeX
+span, `` `Figure~\ref{fig-x}`{=latex} ``, never Quarto's `@fig-x`.
+
+**Why not `@fig-x`.** Quarto's crossref filter only registers figures it
+parsed. A TikZ figure lives inside a ```` ```{=latex} ```` block, which the
+filter passes through untouched, so its label never enters the crossref table
+and `@fig-x` cannot resolve against it. The same mechanism is already visible
+as a defect elsewhere in the report: five `@sec-` references written inside the
+appendix's raw TikZ captions reach the PDF as literal text (`@sec-per-module-
+walkthroughs`), because raw blocks are exempt from every Quarto filter,
+citations and crossrefs alike. Writing `\ref{}` sidesteps the filter entirely
+and resolves in LaTeX, where the label actually exists.
+
+**The numbering question this closes.** Two numbering authorities in one
+document can disagree, so this was checked rather than assumed. Quarto renders
+a markdown figure (`![...]{#fig-x}`) as a genuine LaTeX `figure` float with
+`\caption{\label{fig-x}...}` — not as a hard-coded number. Raw TikZ figures are
+`figure` floats too. Both therefore increment one shared LaTeX counter, and
+numbering follows document order across the two kinds. Confirmed in the
+rendered PDF: Figure 1 (markdown, §2), Figures 2-6 (TikZ, §3), 7-8 (TikZ, §4),
+9-14 (markdown, §6), 15-16 (TikZ, appendix). No renumbering, no collision.
+
+**Rejected — converting the TikZ figures to Quarto-native crossref figures.**
+Would require exporting each diagram to a standalone PDF and including it as an
+image, losing the single-source `preamble.tex` TikZ setup and putting the
+figures out of sync with the document's fonts.
+
+**Rejected — leaving the figures unlabeled.** The status quo. Declared
+`[htbp]`, they float freely, and a reader who meets one two pages from its
+prose has no textual handle back. This is the condition the labels fix.
+
+**Carry-forward — closed 2026-08-01.** The four remaining TikZ figures (two in
+§4, two in the appendix) now carry labels and prose references, and the five
+leaked `@sec-` references in the appendix captions were rewritten as
+`Section~\ref{}` against the labels Quarto generates for those sections. The
+appendix also carried two hard-coded figure numbers in prose ("Figure 7", "Figure
+8") that had gone stale and pointed at the wrong figures; both are now `\ref{}`.
+Every `\ref{}` in the document resolves, and the rendered figure sequence runs
+1-16 across both figure kinds.
+
+
+## D-045 — report: a claim sourced from a project's repository is cited to the repository
+
+**Date:** 2026-07-31
+**Component:** report
+**Status:** settled
+
+**Decision.** When a factual claim comes from a project's repository,
+documentation, or release notes rather than from its paper, the bibliography
+gains a distinct entry for that artifact and the claim cites it. The first case
+is `pairnorm2019code` (the PairNorm reference implementation), added alongside
+`zhao2020pairnorm` and cited for the statement that the scale parameter is
+data-dependent and chosen from {0.1, 1, 10, 50} — wording verified by fetching
+the repository README, which reads "Notice norm_scale is data-dependent. One
+can choose it from {0.1, 1, 10, 50}."
+
+**Why.** A repository-only fact cited to the paper is invisible until someone
+follows the citation, and it looks impeccable until then. A reader who checks
+the ICLR paper for the scale grid will not find it. The claims are accurate;
+only the pointer was wrong.
+
+**Scope check performed.** Every citation key used in Sections 1-3 was audited
+against the artifact actually cited: `kipf2017semi`, `hamilton2017inductive`,
+`velickovic2018graph`, `zhao2020pairnorm`, `xu2018representation`,
+`chen2020simple`, `chen2020measuring`, `cai2020note`, `li2018deeper`,
+`oono2020graph`, `gilmer2017neural`, `topping2022understanding`,
+`sen2008collective`, `yang2016revisiting`. All support claims that live in the
+cited paper. The PairNorm scale grid was the only repository-sourced claim in
+Sections 1-3, and it is new text rather than a pre-existing misattribution.
+
+**Second failure mode to keep checking.** Whether a cited source's stated
+conclusion is reversed later in the same document. The PairNorm README contains
+exactly this: it warns that plain PN behaves badly under a symmetric normalized
+adjacency, then later reports a bug fix and advises starting from plain PN. A
+citation that stops at the first statement misrepresents the source.
+
+**Carry-forward — closed 2026-08-01.** The three repository-sourced claims in
+Section 4 now cite `pairnorm2019code`. The §4.3.2 PairNorm paragraph also
+carries both halves of the README note (the symmetric-adjacency warning *and*
+the later bug-fix note revising the guidance), closing the selective-citation
+failure this entry was written against.
+
+
+## D-046 — report: Section 4's final shape, and where the dissolved subsections went
+
+**Date:** 2026-08-01
+**Component:** report
+**Status:** settled
+
+**Decision.** Section 4 is six subsections: Setup, Model Implementation,
+Mitigation Implementations, Training and Evaluation Harness, Metrics
+Implementation, and The Experiment Grid. Three former subsections are dissolved
+rather than trimmed: Data Pipeline, Visualization and Aggregation, and
+Deviations from Published Setups.
+
+**Why each dissolved.** *Data Pipeline* carried no implementation content of its
+own — loading and row-normalization are two clauses, and row normalization is a
+conformance with the published setup rather than a deviation, so it does not
+earn a subsection. *Visualization and Aggregation* is not implementation of the
+model; of its content one methodological decision survived (the per-panel t-SNE
+fit) and it belongs beside the figure it governs, in §6.9. *Deviations* was a
+self-imposed peer-review convention, not one of the report's required sections,
+and its rows are inert unless the reader already knows the published configs.
+
+**Where the deviations went, and the trap in moving them.** Three rows were
+interpretation-critical and moved into §4 (hidden width to Model Implementation,
+early stopping to the training harness where it was already argued, shared
+hyperparameters to The Experiment Grid). The rest were supposed to be "carried
+by §6 Threats to Validity" — but three of them were not actually there. The
+activation/dropout deviation (GAT publishes ELU and dropout 0.6) appeared
+*nowhere else in the report*, and the GCNII hybrid-configuration deviation
+appeared only in the deleted table. Deleting the subsection on the stated plan
+would have silently dropped both. Four bullets were added to §6.10 —
+activation/dropout, weight-decay scope, checkpoint selection, GCNII hybrid
+configuration — before the deletion was applied.
+
+**Rule this produces.** When a summary section is dissolved on the grounds that
+another section "already carries" its content, verify that claim against the
+other section's text first. A consolidation table is often the only place a fact
+is stated, precisely because it was written to gather facts.
+
+**Consequence.** §6.10's opening no longer refers to the deleted subsection; it
+enumerates the deviations itself.
+
+
+## D-047 — report: prose carries no em dashes or en dashes
+
+**Date:** 2026-08-01
+**Component:** report
+**Status:** settled; observed from the existing text rather than imposed on it.
+
+**Decision.** Report prose uses no em dash and no en dash. Where a parenthetical
+or an appositive is wanted, it takes a comma, a colon, or parentheses. Ranges are
+written with a plain hyphen (`2-32`, `Eq. 1-4`).
+
+**Why.** Measured across the whole notebook before editing: zero em dashes and
+zero en dashes in prose, against roughly 30,000 words. That is not an accident of
+drafting, it is the register the report is already written in, and it matches the
+author's stated voice (formal, no figurative flourish).
+
+**Why it needs recording.** Replacement prose arriving from a review ledger is
+drafted in a working document where em dashes are ordinary, and several agreed
+replacements in the Section 4 pass contained them. Pasting agreed text verbatim
+would have introduced a punctuation style the report had never used, one
+paragraph at a time, in exactly the places most likely to be read closely. The
+convention is recorded so future replacement text is normalized on the way in
+rather than discovered later.
+
+**Scope.** Prose only. Code blocks, TikZ figures, and quoted source keep whatever
+they contain.
+
+**Refined 2026-08-01 — table cells are not prose.** A table cell marking a
+quantity that does not exist takes an em dash (`—`), the ordinary typographic
+convention for "not applicable," and this does not violate the rule above. Three
+cells in `tbl-epoch0-collapse` and one row of `tbl-checkpoint-energy-ratio` use
+it, replacing the phrase "1.0 (trivial, single-point band)" that had been
+repeated in each cell; the reason the ratio is absent at depth 2 now appears once
+in the caption instead of four times inside the tables. The distinction that
+matters is that the rule exists to keep a punctuation *register* out of sentences,
+and a cell containing one glyph is not a sentence.
+
+
+## D-048 — report: Section 5's claims are verified against the source, not written from memory
+
+**Date:** 2026-08-01
+**Component:** report / all modules
+**Status:** settled; verification performed, two errors corrected.
+
+**Decision.** Every factual claim in Section 5 (file paths, class and function
+names, call order, control flow, reproduced code) is checked against the actual
+module before the section ships, and re-checked whenever the code it describes
+moves. Section 5 is the passage that has to survive a line-by-line walk-through,
+so a claim in it that the code does not support is worth more than a claim
+missing.
+
+**What the check found.** Two errors that had survived every prose review,
+because both read as plausible and neither is visible without opening the code:
+
+1. `src/run_sweep.py`'s arm order was stated as **F, A, B, C, E, D**. The actual
+   order in `main()` is **F, A, C, E, B, D**. Arms F and B each precede an
+   aggregation step whose outcome a later arm consumes (arm F selects the
+   hyperparameters, arm B selects arm D's mitigation), so B runs after C and E,
+   and D runs last. The corrected sentence now states that dependency, which is
+   the reason the order is not alphabetical.
+2. The dependency table described `viz` as "never imported by anything." It is
+   imported by `src/generate_report_figures.py` and by `src/tests/test_viz.py`.
+   The claim is defensible only about the seven-module graph, and the sentence
+   did not say that. Cut.
+
+**Verified correct.** The `GnnModel.Forward` excerpt is byte-identical to
+`src/models/gnn_model.py` apart from the outer method indentation, as its
+caption claims. Also confirmed against source: the three `1e-12` guards in
+`metrics` (row-norm clamp, both MAD reduction denominators, the energy floor);
+`_GatConvAdapter`'s `outDim // heads` division; `GcniiModel` calling
+`nn.Module.__init__` directly and its two uncounted projections; `MacroF1` as a
+`bincount` over `targets * numClasses + predictions`; six `_BuildArm*` builders;
+the two `SetSeed` call sites; the `.failed.json` marker and atomic write; every
+one of the five test function names cited; and that no gradient or weight norm
+is persisted anywhere, which is what Section 5.5 and the Section 6 findings rest
+on.
+
+**Consequence.** The Macro-F1 cross-reference in `train`'s walkthrough pointed at
+a §4 paragraph that an agreed §4 cut had already deleted. Rather than restoring
+the paragraph, the `bincount` description now lives in §5, where the
+implementation is the subject.
+
+
+## D-049 — report: Section 6's numbers are re-derived from `results/*.json` before a ledger draft is applied, not trusted from the ledger
+
+**Date:** 2026-08-01
+**Component:** report / results
+**Status:** settled; verification performed, three errors corrected.
+
+**Decision.** Every figure in a replacement paragraph arriving from a review
+ledger is recomputed from `results/*.json` (or from `src/generate_report_figures.py`
+reading the same records) before that paragraph is applied. A ledger draft is a
+proposal about *wording*; the numbers inside it carry no more authority than the
+prose they replace, and in several cases less, because a draft written to correct
+one error can copy a second one forward unexamined.
+
+**What the check found.** Three numbers that had survived into agreed replacement
+text. Two were already wrong in the report and were being reproduced; one was
+wrong in the draft itself.
+
+1. **"GCN's checkpoint slope grows into the tens by depth 8."** False. Measured
+   means over 10 seeds: +1.64 (depth 4), +2.46 (depth 8), +2.14 (depth 16), +0.72
+   (depth 32); the largest single-seed value anywhere is +4.75. Nothing reaches
+   the tens. The claim also originates in `FINDINGS.md` F-004, whose own
+   supporting parenthetical (+1.14) contradicts it — the error was in the findings
+   record first and propagated into the report. F-004 is corrected in place. The
+   surviving contrast is one of magnitude (GCN roughly an order of magnitude above
+   GCNII at every comparable depth), not of category.
+2. **"GCN's energy ratio falls roughly 13 orders of magnitude by depth 32; GAT's
+   falls similarly."** Measured: GCN 12.2 orders, GAT 9.9. The two are not
+   similar, and neither is 13. Corrected to 12 and 10 in §6.3 and in F-002.
+3. **The float32 defense at the wrong end of the range.** The draft argued, as the
+   original did, that the largest ratio (2.49e38) sits safely below float32's
+   ceiling — true but irrelevant, since that ratio is a double-precision division
+   of extracted scalars. At the *lower* end the format has already bound: four of
+   the ten depth-32 seeds hold a band layer at exactly 0.0, and 37 exact zeros
+   plus 63 subnormals appear across the full record set. The draft's proposed
+   replacement (energies sit "within a factor of roughly 2.5" of the smallest
+   normal value) is correct for `E_1` alone and misses the flush. Rewritten;
+   F-001's numerical-headroom paragraph and F-003's per-seed reading both gain
+   the correction.
+
+**Alternatives rejected.** *Applying agreed drafts verbatim and verifying
+afterwards* — the ledger's own drafts are the highest-risk text in the report,
+because they are written with the authority of a settled decision and read as
+already-checked. Verifying after application means the wrong number ships if the
+pass is interrupted. *Trusting `FINDINGS.md` as the numeric source of record* —
+F-004 shows the findings file can carry an error that no downstream reader would
+catch, since the report quotes it rather than the records.
+
+**Rule this produces.** The records are the source of truth for every §6 figure.
+`FINDINGS.md`, `DECISIONS.md`, and any review ledger are secondary and are
+themselves checked against the records when a claim is reopened. A ledger entry
+that says "VERIFY" is a hard gate, not a suggestion; entry C-115's fifth verify
+item ("whether any recorded energy is exactly 0.0 — this one could change the
+prose") is the case that proves the gate earns its cost.
+
+**Open question.** Nothing systematically re-checks the report's numbers against
+the records. A test that parses §6's tables and asserts each against a fresh
+aggregation would close this, and does not exist.
+
+
+## D-050 — report: Sections 6 and 7's final shape, and where the dissolved subsections went
+
+**Date:** 2026-08-01
+**Component:** report
+**Status:** settled
+
+**Decision.** Section 6 is ten subsections: Two-Layer Baselines, Accuracy and
+Macro-F1 Across Depth, Collapse at Initialization, The Trained State,
+Oversmoothing Against Optimization Failure, GCNII Across Depth, Mitigation
+Ablation, Embedding Projections, Limitations, Applications. Section 7 is three:
+Open Questions, What Was Not Measured, Scale and Noise.
+
+**Headings name an object, not a claim.** Sections 3 and 4 already name what a
+subsection is about ("Metrics Implementation", "The Cora Citation Network");
+Section 6's named the narrative move instead ("The Architecture That Does Not
+Degrade", "Separating Oversmoothing from Optimization Failure"). Nine section
+titles and seven subsection titles were changed to match the rest of the report.
+Labels moved with them, and 17 inbound references were retargeted.
+
+**Six subsections dissolved.** *Reporting Conventions* was a 483-word methods
+block delaying the first result; only the geometric-mean argument was
+load-bearing and it moved to Checkpoint Energy Ratio, beside the one table whose
+numbers it governs. *Energy Ratio Decay and the Contraction Bound* was absorbed
+into Collapse at Initialization's opening. *The Open Question: Why GraphSAGE
+Collapses First* performed analysis and reached no answer; its measured facts
+(the single-hop MAD figures, the `root_weight` ablation) moved to §7's Open
+Questions, which is where the unanswered belongs. *The Positive Control* restated
+in a full subsection what Checkpoint MAD says in two sentences beside the
+relevant table. *Unexplained Underperformance* was a subsection whose entire
+content was the absence of an explanation; two sentences at the end of The Full
+Ablation carry it. *Instrumentation Gaps* and *Extensions to the Experimental
+Design* had the same three-column shape and answered the same pair of questions,
+and merged into What Was Not Measured.
+
+**Where the dissolution rule from D-046 applied again.** D-046's rule is to verify
+that the absorbing section actually carries the content before deleting. It caught
+one case here: cutting *The Open Question* leaves §7's existing sentence
+("@sec-structural-collapse-at-initialization narrows it to two candidates")
+pointing at a section that after the cut narrows nothing. §7's bullet absorbs the
+figures rather than inheriting the cross-reference.
+
+**Section 6.9's opening.** Limitations went from thirteen bullets to five. Three
+cut bullets stated "can only understate, never overstate" — a bias that can only
+weaken the study's own finding is conservatism, not a threat to validity, and each
+is already stated where it occurs. Three more were argued in §4 at the point of
+decision. The opening no longer describes the section as an enumeration of
+deviations, since after the cut most surviving bullets are not deviations.
+
+**Consequence.** Two figures (`fig-energy-vs-layer`, `fig-energy-shift`) were
+referenced from nowhere in the report and sat above the prose introducing them.
+Both moved below their own paragraph and gained a reference. Two others
+(`fig-mitigation-ablation`, `fig-loss-curves`) are still unreferenced from prose
+and were outside this pass.
+
+
+## D-051 — report: a retitled Section 7 subsection keeps its `{#sec-}` label
+
+**Date:** 2026-08-01
+**Component:** report
+**Status:** settled
+
+**Decision.** When a Section 7 subsection is retitled, the `{#sec-}` label stays as
+it was. `Instrumentation Gaps` → `What Was Not Measured` keeps
+`{#sec-instrumentation-gaps}`; `Questions This Study Raised and Did Not Answer` →
+`Open Questions` keeps `{#sec-questions-this-study-raised-and-did-not-answer}`.
+Section 6, by contrast, renamed its labels along with its titles (D-050).
+
+**Why the two sections differ.** Section 6's retitles were a wholesale pass, so
+every inbound reference was being rewritten anyway and leaving the labels stale
+would have cost nothing to fix and something to read. Section 7's two retitles are
+isolated, and between them the labels carry six inbound references from Sections
+5 and 6. Renaming buys nothing a reader can see — a label never appears in the
+rendered PDF — and each rename is an opportunity to leave a reference dangling.
+
+**Alternative rejected.** *Renaming for consistency with D-050.* Consistency
+between a heading and its own anchor is invisible to every reader of the output.
+The rule that matters is that references resolve, and the check for that is
+mechanical (compare the `{#...}` set against the `@...` set), which is now run
+after every editing pass.
+
+**Assumption.** Labels are internal identifiers with no reader-facing meaning.
+True under Quarto, where cross-references render as "Section 6.4" from the
+numbering, never from the label text.

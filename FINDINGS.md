@@ -140,6 +140,30 @@ itself is ~1.4e-15 at checkpoint) being astronomically small, not from any
 value approaching a numerical ceiling — the same fact stated above as the
 correction to "never collapses," not a separate observation.
 
+**The lower end is the exposed one (added 2026-08-01).** This paragraph
+originally defended only the upper end, which was never at risk. The float32
+format binds at the *bottom* of the range, and there it has already bound.
+Checked across all 500 records and all three captures: no `inf` or `nan`
+anywhere, but **37 recorded energies are exactly 0.0** and 63 more are
+subnormal (`0 < x < 1.1755e-38`); the smallest positive energy anywhere is
+3.92e-44, deep into the subnormal range and within a factor of 28 of the
+flush-to-zero threshold (1.4e-45). In the depth-32 unmitigated GCN checkpoint
+band specifically, **four of the ten seeds hold one band layer at exactly 0.0**
+— seed 2 (layer 26), seed 4 (layer 27), seed 7 (layer 27), seed 8 (layer 28) —
+with no subnormals in that band: those layers step from normal-range values
+straight to zero. The smallest `E_1` is 2.8719e-38 (seed 9), 2.44× float32's
+smallest normal, which is what the "edge of float32's representable range"
+phrasing at F-003 was reaching for and is correct as stated *for `E_1`*.
+
+**What this does and does not change.** It does not overturn the early-layer
+collapse finding: the layers on either side of those four zeros carry measured
+values many orders of magnitude above zero, and 9 of 10 seeds show the pattern
+without any flush at all. What it changes is the reading of "essentially zero
+energy" — for four seeds, one layer's value is the format's floor rather than a
+quantity the run resolved, so that layer is a lower bound on the collapse, not
+a measurement of it. Section 6.4 now names the boundary instead of naming only
+the safe one.
+
 F-002 contrasts this checkpoint picture against epoch 0: the clean collapse
 signature that GCN and GAT both show at initialization does not survive
 training under this study's hyperparameters.
@@ -211,9 +235,12 @@ ratio is trivially 1.0 (the band is a single point, `bandIndices = [1]`).
 **GCN and GAT show clean, monotonic collapse in both MAD and energy ratio.**
 GCN final-representation MAD: 0.600 → 0.240 → 0.085 → 0.023 → 0.0045 across
 depths 2/4/8/16/32; energy ratio `E_last/E_1`: 1.0 → 3.14e-2 → 3.14e-4 →
-2.60e-7 → 6.22e-13 (monotonic, ~13 orders of magnitude by depth 32). GAT: MAD
+2.60e-7 → 6.22e-13 (monotonic, 12.2 orders of magnitude by depth 32 — an
+earlier wording said "~13", corrected 2026-08-01). GAT: MAD
 0.596 → 0.211 → 0.076 → 0.017 → 0.0041; energy ratio 1.0 → 7.26e-2 → 2.73e-3
-→ 1.28e-5 → 1.25e-10. Both decay monotonically and look exponential in depth
+→ 1.28e-5 → 1.25e-10 (9.9 orders by depth 32, not comparable to GCN's 12.2;
+an earlier wording said GAT "decays similarly"). Both decay monotonically and
+look exponential in depth
 — consistent with the *qualitative* shape Cai & Wang's bound predicts
 (repeated contraction). This is **not** a claim of numerical agreement with
 the bound itself: `||W||` and the graph's spectral gap were not computed and
@@ -356,8 +383,16 @@ first rises back above it —
 
 Nine of ten seeds show the same shape: the early ~22–28 layers carry
 essentially zero energy (`E_1` itself ranging from 1.4e-15 down to 2.9e-38 —
-the smallest values sit at the edge of float32's representable range),
-transitioning to non-negligible energy only in roughly the last 4–9 layers.
+the smallest sits at 2.44× float32's smallest normal value, at the edge of what
+the format represents exactly), transitioning to non-negligible energy only in
+roughly the last 4–9 layers. **Four seeds pass that edge (added 2026-08-01):**
+seeds 2, 4, 7, and 8 each hold one band layer at exactly 0.0 (layers 26, 27,
+27, 28), with no subnormal values in between — those layers step from
+normal-range values straight to zero. For those four layers "essentially zero"
+is a lower bound set by the format, not a resolved measurement; the collapse
+finding is unaffected, since the neighboring layers carry real values many
+orders of magnitude above zero and 9 of 10 seeds show the pattern with no flush
+at all. F-001's numerical-headroom paragraph carries the full count.
 **Seed 6 is a genuine exception**, not folded into the pattern to keep it
 clean: no layer falls below the floor, `E_1 = 3.3e-12`. Seed 6 also has the
 highest test accuracy of the ten (26.2%) and the shortest run (`epochsRun=315`,
@@ -416,34 +451,53 @@ instrumentation, not a re-read of existing records.
 
 ## F-004 — GCNII is the one architecture whose test accuracy improves with depth, and its checkpoint slope stays near zero rather than exploding
 
-**Date:** 2026-07-21
+**Date:** 2026-07-21, corrected 2026-08-01
 **Scope:** GCNII (`alpha=0.1`, `theta=0.5` per D-042 — D-034 had left these
 open; D-042 is the closing decision), full depth sweep `{2, 4, 8, 16, 32}`,
 checkpoint state, real `train/` harness, 10 seeds.
 
 ### Measured
 
-**Test accuracy rises monotonically with depth**, the opposite direction from
-GCN/SAGE/GAT (F-001): 78.45% (±1.79, depth 2) → 75.81% (±4.82, depth 4) →
-77.66% (±1.63, depth 8) → 80.16% (±1.04, depth 16) → **83.26% (±0.44, depth
-32)**. Depth 32 is GCNII's best result and has the tightest spread of any
-depth (std 0.44 points, versus 1–5 points elsewhere).
+**Test accuracy improves with depth from depth 4 onward, and depth 32 is the
+best result** — the opposite direction from GCN/SAGE/GAT (F-001): 78.45%
+(±1.79, depth 2) → 75.81% (±4.82, depth 4) → 77.66% (±1.63, depth 8) → 80.16%
+(±1.04, depth 16) → **83.26% (±0.44, depth 32)**. Depth 32 also has the
+tightest spread of any depth (std 0.44 points, versus 1–5 points elsewhere).
+**An earlier wording of this entry said "rises monotonically with depth" —
+false as stated, and corrected here rather than softened:** accuracy *falls*
+2.64 points from depth 2 to depth 4 before climbing. The claim that survives
+is directional (improves with depth over most of the range, best at the
+maximum depth tested), which is what distinguishes GCNII from the other three;
+monotonicity is a stronger property the data does not support.
 
-**Checkpoint `contractionSlope` trends toward and past zero, not toward the
-explosive growth GCN shows (F-001).** Depth 4: +0.383 (±0.063); depth 8:
-+0.169 (±0.024); depth 16: **−0.037** (±0.010, a genuine sign flip); depth 32:
-+0.012 (±0.003, essentially flat). Contrast GCN's checkpoint slope, which
-grows to the tens by depth 8 and beyond (D-037's quantified check on
-`gcn_none_d32_s0`: unfloored checkpoint slope +1.14). GCNII's slope stays
+**Checkpoint `contractionSlope` shrinks toward zero as depth grows and stays
+near it, rather than growing as GCN's does (F-001).** Depth 4: +0.383
+(±0.063); depth 8: +0.169 (±0.024); depth 16: **−0.037** (±0.010, a genuine
+sign flip); depth 32: +0.012 (±0.003, essentially flat). GCNII's slope stays
 within roughly ±0.4 of zero at every depth tested — no blow-up, no collapse.
+Note that the depth-16 sign flip does not hold: depth 32 returns to +0.012, so
+the shape is a shrink toward zero with one crossing, not a crossing that
+persists.
+
+**GCN's checkpoint slope for contrast, corrected.** An earlier wording said
+GCN's slope "grows to the tens by depth 8 and beyond." **That is false**, and
+the parenthetical it cited as support (`gcn_none_d32_s0`: unfloored checkpoint
+slope +1.14) already contradicted it. Measured means over 10 seeds:
+**+1.64** (±0.148, depth 4), **+2.46** (±1.654, depth 8), **+2.14** (±0.241,
+depth 16), **+0.72** (±0.100, depth 32); the largest single-seed value anywhere
+in the sweep is +4.75 (depth 8). Nothing reaches the tens. The contrast that
+survives is one of magnitude, not of category: GCN's checkpoint slope runs
+roughly an order of magnitude above GCNII's at every comparable depth (+0.72
+against +0.012 at depth 32, +2.46 against +0.169 at depth 8). Section 6.6
+states it in those terms.
 
 ### Inferred (consistent with, not demonstrated)
 
 GCNII's identity-mapping and initial-residual terms (D-008, D-034) are
 architecturally designed to prevent both the vanishing-gradient dynamic F-003
 infers for GCN and the unconstrained late-layer growth that produces it. The
-near-zero, non-exploding checkpoint slope and the monotonically improving
-accuracy are *consistent with* that design doing what it is meant to do — this
+near-zero checkpoint slope and the improving accuracy are *consistent with*
+that design doing what it is meant to do — this
 has not been checked against GCNII's own per-layer weight norms or gradients
 the way F-003 did for GCN (not done, not claimed here), so it remains a
 plausible reading of the accuracy/slope pattern rather than a demonstrated
