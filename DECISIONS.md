@@ -1872,9 +1872,13 @@ because both read as plausible and neither is visible without opening the code:
    The claim is defensible only about the seven-module graph, and the sentence
    did not say that. Cut.
 
-**Verified correct.** The `GnnModel.Forward` excerpt is byte-identical to
+**Verified correct.** The `GnnModel.Forward` excerpt matched
 `src/models/gnn_model.py` apart from the outer method indentation, as its
-caption claims. Also confirmed against source: the three `1e-12` guards in
+caption claimed at the time. *Amended 2026-08-02:* the quoted copy now also
+elides the three-line tap comment, which restated both the sentence
+introducing the block and the argument in §4. The comment stays in the source
+file, where no such lead-in exists, and the caption was rewritten to say what
+is removed rather than to claim verbatim reproduction. Also confirmed against source: the three `1e-12` guards in
 `metrics` (row-norm clamp, both MAD reduction denominators, the energy floor);
 `_GatConvAdapter`'s `outDim // heads` division; `GcniiModel` calling
 `nn.Module.__init__` directly and its two uncounted projections; `MacroF1` as a

@@ -283,12 +283,10 @@ ten seeds.
 Each run is additionally instrumented at the representation level with
 Dirichlet energy and mean average distance (MAD)
 \citep{chen2020measuring}, reported as a pair because they are invariant
-to different things. Both are captured at three points in every run: at
-initialization before any gradient step, at the checkpoint selected by
-lowest validation loss, and at the final epoch. The epoch-0 capture
-isolates the architecture from the optimizer, and the
-epoch-0-to-checkpoint comparison is what separates a trained state from
-an untrained one.
+to different things. Both are captured three times per run, before
+training, at the selected checkpoint, and at the final epoch, which is
+what makes an untrained state available as an explicit reference rather
+than an assumption.
 
 \subsection{Contributions}\label{contributions}
 
@@ -370,27 +368,23 @@ finding this work extends.
 
 \subsection{Mitigations}\label{mitigations}
 
-Residual connections add an identity path that preserves an earlier
-representation and shortens the gradient route. PairNorm instead acts on
-the geometry directly, centering and rescaling rows so their dispersion
-does not shrink with depth \citep{zhao2020pairnorm}. Jumping Knowledge
-changes the readout rather than the propagation, combining
-representations from several depths \citep{xu2018representation}. GCNII
-modifies the layer itself, adding an initial-residual term and an
-identity mapping \citep{chen2020simple}.
+The proposed remedies act at different points. Residual connections add
+an identity path through the layer; PairNorm acts on the geometry of the
+representation \citep{zhao2020pairnorm}; Jumping Knowledge changes the
+readout instead of the propagation \citep{xu2018representation}; and
+GCNII modifies the layer itself \citep{chen2020simple}. Section III
+gives each as implemented here.
 
 \subsection{The Gap}\label{the-gap}
 
 Prior work establishes that accuracy declines with depth and,
 separately, that representations contract with depth. What is rarely
 established is that the first was caused by the second in a particular
-model. Evaluations typically report a single collapse metric at a single
-point in training, usually the trained model, which cannot separate a
-network that trained and then collapsed from one whose weights never
-left initialization. This study addresses that gap by holding dataset,
+model, because evaluations typically report one collapse metric at one
+point in training. This study addresses that gap by holding dataset,
 split, and protocol fixed across four architectures, reporting two
 metrics with different invariances as a pair, and capturing both at
-three points so the untrained state is an explicit reference.
+three points.
 
 \section{Methodology}\label{methodology}
 
@@ -526,8 +520,9 @@ The comparable band is therefore \(\mathcal{B}=\{1,\ldots,L-1\}\), or
 \(\{1,\ldots,L\}\) under Jumping Knowledge. Energy is reported relative
 to the band's first layer,
 \(R_\ell=E_{\mathrm{dim}}(H^{(\ell)})/E_{\mathrm{dim}}(H^{(\ell_0)})\)
-with \(\ell_0=\min(\mathcal{B})\), and summarized by a contraction slope
-\(b\) fitted as
+with \(\ell_0=\min(\mathcal{B})\); \(E_1\) below denotes that
+first-layer energy. The curve is summarized by a contraction slope \(b\)
+fitted as
 
 \[
 \log\max\!\left\{E_{\mathrm{dim}}\!\left(H^{(\ell)}\right),\varepsilon_E\right\}\approx a+b\ell,
@@ -632,7 +627,9 @@ though its numerical tightness is not tested here.
 \begin{table*}[t]
 \centering
 \caption{Epoch-0 MAD and relative energy versus depth, means over ten seeds.
-At depth 2 the comparable band holds one layer, so the ratio is not reported.}
+At depth 2 the comparable band holds one layer, so the ratio is not reported.
+GraphSAGE's MAD at depths 16 and 32 sits at the noise level around zero, where
+the depth-32 standard deviation exceeds the mean.}
 \label{tab:epoch0}
 \begin{tabular}{llrrrrr}
 \hline
@@ -714,10 +711,11 @@ macro-F1 (0.7252 against 0.7249), but recovers GraphSAGE only to 40.47\%
 with macro-F1 0.2611. All ten GraphSAGE+JK seeds sit above the
 majority-class floor, so the gain is real, but it is about a third of
 what the same mitigation achieves elsewhere and is not spread evenly
-across classes. GCNII is the only architecture whose accuracy improves
-with depth, and its checkpoint contraction slope stays within roughly
-\(\pm 0.4\) at every depth (+0.383, +0.169, −0.037, +0.012) where GCN's
-runs from +1.64 to +2.46.
+across classes. GCNII is the only architecture that ends higher than it
+starts, rising from 78.45\% at depth 2 to 83.26\% at depth 32 after a
+dip to 75.81\% at depth 4. Its checkpoint contraction slope stays within
+roughly \(\pm 0.4\) at every depth (+0.383, +0.169, −0.037, +0.012)
+where GCN's runs from +1.64 to +2.46.
 
 \begin{table}[t]
 \centering
