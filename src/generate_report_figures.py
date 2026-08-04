@@ -37,12 +37,12 @@ from viz import (
 FIGURES_DIR = "figures"
 TABLES_DIR = "tables"
 
-# depth-2 Cora accuracies as published, entered from the papers rather than
-# recomputed, so Section 6.1 compares against a figure with a citation attached
+# depth-2 Cora accuracies as originally reported, entered as literals rather than
+# recomputed, so Section 6.1 compares the measured runs against the reported figures
 PUBLISHED_DEPTH2_ACCURACY: dict[str, dict[str, object]] = {
-    "gcn": {"published": 81.5, "publishedStd": None, "source": "kipf2017semi"},
-    "sage": {"published": None, "publishedStd": None, "source": "hamilton2017inductive"},
-    "gat": {"published": 83.0, "publishedStd": 0.7, "source": "velickovic2018graph"},
+    "gcn": {"published": 81.5, "publishedStd": None},
+    "sage": {"published": None, "publishedStd": None},
+    "gat": {"published": 83.0, "publishedStd": 0.7},
 }
 
 ARCHITECTURE_LABELS: dict[str, str] = {"gcn": "GCN", "sage": "GraphSAGE", "gat": "GAT"}

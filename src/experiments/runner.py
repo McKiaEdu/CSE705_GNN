@@ -33,8 +33,9 @@ from .grid import OUT_DIM, IN_DIM, RunConfig
 
 _CONV_MODEL_CLASSES: dict[str, type[GnnModel]] = {"gcn": GcnModel, "sage": SageModel, "gat": GatModel}
 
-# Chen et al., arXiv:2007.02133, Table 6, Cora row: alpha_l: 0.1, lambda: 0.5
-# (verified by fetching, not from memory). GCN2Conv calls lambda "theta".
+# GCNII's reported Cora setting, transcribed rather than tuned in this study, so
+# the architectural control is evaluated at the configuration it was designed for.
+# GCN2Conv names lambda "theta".
 GCNII_ALPHA = 0.1
 GCNII_LAMBDA = 0.5
 

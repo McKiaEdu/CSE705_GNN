@@ -2351,3 +2351,145 @@ constraints that scikit-learn "belongs in `requirements-dev.txt`, not
 `requirements.txt`, per D-021." That was already wrong before this change and is now
 doubly so. Specs are authored by Kiarash and are read-only to the assistant, so the
 bullet is flagged rather than edited and needs updating by hand.
+
+
+## D-059 — code: the source carries no external references of any kind, neither internal identifiers nor literature citations
+
+**Date:** 2026-08-03
+**Component:** repo / code style
+**Status:** settled
+
+**Decision.** No file under `src/` carries a pointer to anything outside itself.
+That covers two classes together: internal identifiers (`D-NNN`, `DECISIONS.md`,
+any `specs/*_spec.md` filename) and literature citations (author names, arXiv
+identifiers, equation and table numbers from published papers, BibTeX keys).
+Where the reasoning behind a choice matters at the point of code, the comment
+states that reasoning in full rather than pointing at something that carries it.
+Attribution for the published methods this study implements lives in the report
+and `report/references.bib`, which is where a citation resolves.
+
+**Why.** The code is submitted as a standalone artifact and read by people who
+hold neither the planning files nor the bibliography. To such a reader `(D-030)`
+or `arXiv:1909.12223` is a dead pointer: it signals that an explanation exists
+somewhere and withholds it, which is worse than no annotation, because a comment
+that stands alone would have said the thing. Pointers also decay independently of
+the code, since this log is edited in place and the bibliography is re-keyed,
+while a comment quoting an old number is not.
+
+**Why all of them and not the well-covered ones.** Citation coverage in the
+source was partial and had no principle behind it: GAT, GCNII, PairNorm and MAD
+carried references while `GcnModel` and `SageModel` had no docstring at all, and
+Jumping Knowledge was uncited. A partial citation set reads as a claim about
+which implementations are derived and which are original, and that claim was
+false as written. Completing the set and removing it are both coherent; a
+half-covered set is not.
+
+**The test for a comment that loses its reference.** If striking the pointer
+leaves the comment incomplete, the comment was underwritten and gets rewritten,
+not merely truncated. `src/smoke_test.py` already stated the arm-collision defect
+before appending `(D-030)`, so removal cost nothing. The three MAD comments cited
+equation numbers in place of saying what the step did, so each was rewritten to
+name the operation (row mean over non-zero distances; final mean over rows with a
+non-zero average).
+
+**Alternatives rejected.** *Keeping identifiers where the rationale is
+non-obvious* — the case for this is real (the augmented metric graph, the
+per-dimension energy normalization, the residual hook's layer range are all
+choices no reader recovers from the code alone), but it is met properly by
+writing the reasoning into the comment, not by referencing it. *A one-time
+appendix mapping identifiers to code locations* — reintroduces the coupling in a
+second place and has to be maintained against both sides. *Completing the
+citation set instead of removing it* — weighed and not taken; the code is graded
+as an artifact the reader runs, the report is where derivation from published
+work is stated, and duplicating it in comments creates a second place for it to
+go stale. *Restricting the rule to internal identifiers only* — the earlier
+wording of this entry, superseded on the same day; it left the partial and
+principle-free citation set in place, which is the defect above.
+
+**Assumption, flagged.** This raises the stakes on the report's related-work and
+method sections: they are now the only place stating that PairNorm, GCNII, GAT,
+GraphSAGE, GCN, JK and MAD are implementations of published methods rather than
+inventions of this study. `report/references.bib` was checked and holds all of
+them.
+
+**Consequence, applied.** Edited: `src/smoke_test.py`, `src/metrics/oversmoothing.py`,
+`src/mitigations/hooks.py`, `src/models/architectures.py`, `src/experiments/runner.py`,
+`src/generate_report_figures.py`. The dead `source` BibTeX keys in
+`PUBLISHED_DEPTH2_ACCURACY` were read by nothing, and `tables/baseline_comparison.md`
+rebuilds byte-identical without them.
+
+**Consequence, not yet applied.** `CSE705_GNN_ARAK_WU1261_code.zip` at the repo
+root still contains the pre-edit sources and needs rebuilding before submission.
+
+
+## D-060 — repo: `requirements.txt` declares PyTorch's CPU index so the README's install command works unmodified
+
+**Date:** 2026-08-03
+**Component:** repo / reproducibility
+**Status:** settled
+
+**Decision.** `requirements.txt` carries `--extra-index-url
+https://download.pytorch.org/whl/cpu` above the pins. The `torch==2.13.0+cpu`
+pin stays exactly as it was, and the README's install step stays the single
+unmodified command `pip install -r requirements.txt`.
+
+**The defect.** `+cpu` is a local version identifier, and PyPI does not carry it:
+PyPI publishes `torch 2.13.0`, while the `+cpu` build is published only on
+PyTorch's own index. A recipient following the README verbatim in a clean
+environment got `ERROR: Could not find a version that satisfies the requirement
+torch==2.13.0+cpu (from versions: 2.9.0 ... 2.13.0)` and could install nothing at
+all. This was verified by resolving against a clean Python 3.14 virtual
+environment, not reasoned about. Because pip reads index directives from inside a
+requirements file, moving the declaration there fixes the documented path rather
+than adding a step to it.
+
+**Alternatives rejected.** *Relaxing the pin to `torch==2.13.0`* — resolves from
+PyPI, but on Linux that name serves the CUDA build, which pulls the `nvidia-*`
+stack for a study whose results were produced and are reproduced on CPU, and it
+breaks the file's own promise that the pins match the environment the results
+came from. *Documenting the flag in the README install command instead* — leaves
+`requirements.txt` unusable on its own, which is the artifact a reader is most
+likely to feed to a tool.
+
+**Known cost.** `--extra-index-url` makes pip consider both indexes for every
+requirement rather than only for torch. Every package in the file is pinned to an
+exact version, so resolution stays determinate, but the directive is broader than
+the one package that needs it. `--index-url` was not used because it would route
+the other fifty-odd packages away from PyPI.
+
+**Verified end to end.** From the rebuilt archive, extracted to an empty
+directory, under a venv built only from this file: 587 → 584 files with the
+manifest unchanged, all packages import (torch 2.13.0+cpu, PyG 2.8.0),
+`src/smoke_test.py` reproduces the shipped depth-2 GCN record at 0.8140 with a
+difference of 0.0000, `pytest` reports 120 passed in 143.71s, Cora downloads to
+`data/Cora/` on first use, and `src/generate_report_figures.py` rewrites all 12
+tables byte-identical to the shipped ones.
+
+
+## D-061 — process: applied ledger anchor checkers are deleted once they have run; `a67.py` is kept by exception
+
+**Date:** 2026-08-03
+**Component:** process / verification tooling
+
+**Decision.** A ledger anchor checker is a one-shot instrument: it exists to
+confirm that a ledger's insertions landed in the report, and once that pass is
+applied it has no further job. `decisions/applied/anchors.py` (sections 1-5) is
+deleted. `decisions/applied/a67.py` (sections 6-7) is kept by explicit choice,
+so it remains available for a re-check before submission.
+
+**Why the deletion is not a loss of coverage.** By the time it was removed,
+`anchors.py` reported 59 of 66 anchors missing, because the report's prose was
+rewritten past the exact sentences it pinned. A checker keyed to wording that no
+longer exists reports drift in itself, not in the document, and a standing red
+result trains its own reader to ignore it. Quantitative currency is covered
+separately and does pass: `report/check_numbers.py` re-derives every headline
+figure from the records and finds 55/55 claims in the report and 47/47 in the
+paper.
+
+**Not established.** Whether any of those 59 anchors marks content that was lost
+rather than rephrased was never determined; answering it needs
+`decisions/applied/ledger_*.md` read against the current report. The question is
+open, and deleting the checker does not close it.
+
+**Note.** `decisions/` is outside version control (`.gitignore` line 1 is `/*`),
+so deletions there are not recoverable from git history.

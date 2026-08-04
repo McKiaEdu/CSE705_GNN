@@ -10,10 +10,9 @@ metric correctness, seeding, schema shape, and collapse behavior at depth.
 Nothing is written by default. `RunOne` is pure: it builds, trains, and returns
 a record, while every write lives in `RunSweep`, which this does not call. So
 running this cannot touch the shipped `results/`, which matters because arm
-collisions silently overwriting result files were a real defect in this project
-(D-030). Passing --save writes the record to its own subdirectory instead,
-following the same convention that isolates results/fidelity and
-results/hpsearch.
+collisions silently overwriting result files were a real defect in this project.
+Passing --save writes the record to its own subdirectory instead, following the
+same convention that isolates results/fidelity and results/hpsearch.
 
 Usage:
     python src/smoke_test.py

@@ -28,14 +28,12 @@ class ResidualHook:
 
 
 class PairNormHook:
-    """PN-SI (Zhao & Akoglu, arXiv:1909.12223, Eq. 10-11 with the scale-
-    individual substitution given directly below Eq. 12), verified against the
-    paper rather than inferred from the variant name.
+    """PairNorm, scale-individual variant.
 
     Center by the column mean over nodes, then scale each row by its own L2
     norm times `scale`: x_i -> scale * (x_i - mean) / ||x_i - mean||_2. The
     row-norm denominator is clamped away from zero: ReLU produces all-zero
-    rows at depth, and the paper's own formula does not need this guard because
+    rows at depth, and the original formulation does not need this guard because
     it was not stress-tested at that regime; the clamp is this study's addition.
     """
 

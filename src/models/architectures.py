@@ -33,7 +33,7 @@ class SageModel(GnnModel):
 class GatModel(GnnModel):
     """8 attention heads throughout. The logit-emitting final layer under
     LastLayerReadout uses a single head so its output is exactly outDim wide with
-    no concatenation, matching Velickovic et al."""
+    no concatenation."""
 
     CONV_TYPE = "gat"
     NUM_HEADS = 8
@@ -44,7 +44,7 @@ class GatModel(GnnModel):
 
 
 class GcniiModel(GnnModel):
-    """GCNII (Chen et al. 2020, arXiv:2007.02133) via PyG's GCN2Conv.
+    """GCNII via PyG's GCN2Conv.
 
     An uncounted Linear(inDim, hiddenDim) input projection and, under
     LastLayerReadout, an uncounted Linear(hiddenDim, outDim) output projection

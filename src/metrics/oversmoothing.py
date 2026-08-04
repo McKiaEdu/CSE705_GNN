@@ -43,16 +43,15 @@ def BuildAugmentedOperator(edgeIndex: Tensor, numNodes: int) -> tuple[Tensor, Te
 
 
 def MeanAverageDistance(h: Tensor) -> float:
-    """MAD per arXiv:1909.03211 Eq. 1-4 (global variant): cosine-distance
-    matrix, reduced over non-zero entries only, at both the row-mean and
-    final-mean stage.
+    """Mean Average Distance, global variant: cosine-distance matrix, reduced
+    over non-zero entries only, at both the row-mean and the final-mean stage.
     """
     rowNorm = h.norm(dim=1, keepdim=True).clamp_min(1e-12)
     normalized = h / rowNorm
     distance = 1.0 - normalized @ normalized.T
 
-    # excluding self-pairs: inert for nonzero rows (D_ii = 0 already, so Eq.
-    # 3's non-zero filter drops it regardless), but load-bearing for an
+    # excluding self-pairs: inert for nonzero rows (D_ii = 0 already, so the
+    # row mean's non-zero filter drops it regardless), but load-bearing for an
     # all-zero row, where the norm clamp above makes the self-cosine-similarity
     # compute as 0 rather than 1, which would otherwise leave a spurious D_ii = 1
     # that survives the non-zero filter
@@ -63,15 +62,16 @@ def MeanAverageDistance(h: Tensor) -> float:
     nonZeroMask = distance > 0
     rowSum = distance.sum(dim=1)
     rowCount = nonZeroMask.sum(dim=1).to(distance.dtype)
-    # Eq. 3, clamped to 0 rather than NaN when a row has no non-zero distances:
-    # the fully collapsed regime this metric exists to measure
+    # averaging each row over its non-zero distances only, clamped to 0 rather
+    # than NaN when a row has none: the fully collapsed regime this metric
+    # exists to measure
     rowAverage = torch.where(rowCount > 0, rowSum / rowCount.clamp_min(1.0), torch.zeros_like(rowSum))
 
     nonZeroRowMask = rowAverage > 0
     validRowCount = int(nonZeroRowMask.sum())
     if validRowCount == 0:
         return 0.0
-    # Eq. 4, same 0-not-NaN clamp
+    # averaging over rows with a non-zero row average, same 0-not-NaN clamp
     return float(rowAverage.sum() / validRowCount)
 
 
